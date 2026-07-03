@@ -46,27 +46,6 @@ struct RootView: View {
 
 // MARK: - Temporary placeholder (replaced in the Chat phase)
 
-/// Minimal stand-in so the routing skeleton compiles and is demoable.
-struct MainWindowView: View {
-    let session: AuthSession
-    let dependencies: AppDependencies
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("Hoş geldin, \(session.displayName ?? session.userID)")
-                .font(.title2)
-
-            Text("Chat ekranı bir sonraki fazda buraya gelecek.")
-                .foregroundStyle(.secondary)
-
-            Button("Çıkış Yap") {
-                Task { await dependencies.authService.logout() }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 #Preview("Full flow (mock)") {
     RootView(dependencies: .makePreview(auth: .init(latency: .seconds(1))))
         .frame(width: 700, height: 500)
