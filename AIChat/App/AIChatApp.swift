@@ -6,16 +6,20 @@
 //
 
 import SwiftUI
-import CoreData
 
 @main
 struct AIChatApp: App {
-    let persistenceController = PersistenceController.shared
+
+    /// Built once for the app's lifetime. The composition root.
+    @State private var dependencies = AppDependencies.makeDefault()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+            RootView(dependencies: dependencies)
+                // Minimum size guard: sidebar + chat stays usable.
+                .frame(minWidth: 720, minHeight: 480)
         }
+        .defaultSize(width: 1000, height: 680)
+        .windowResizability(.contentMinSize)
     }
 }
