@@ -4,54 +4,89 @@
 //
 //  Created by Ilker Ugur Kaya on 2.07.2026.
 //
+//  NSPersistentContainer wrapper. Two entry points:
+//  - `shared`   : on-disk store used by the running app
+//  - inMemory   : /dev/null-backed store for unit tests & previews
+//                 (spec: "repository testleri in-memory persistent store
+//                 kullanılarak yazılmalıdır")
+//
 
 import CoreData
+import os
 
 struct PersistenceController {
+
     static let shared = PersistenceController()
 
+    /// In-memory store pre-seeded with one sample conversation,
+    /// for SwiftUI previews that want visible data.
     @MainActor
     static let preview: PersistenceController = {
-        let result = PersistenceController(inMemory: true)
-        let viewContext = result.container.viewContext
-        for _ in 0..<10 {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-        }
+        let controller = PersistenceController(inMemory: true)
+        let context = controller.container.viewContext
+
+        let conversation = CDConversation(context: context)
+        conversation.id = UUID()
+        conversation.title = "Örnek Sohbet"
+        conversation.createdAt = Date()
+        conversation.updatedAt = Date()
+        conversation.providerID = "mock"
+        conversation.modelID = "mock-fast"
+
+        let message = CDMessage(context: context)
+        message.id = UUID()
+        message.role = MessageRole.user.rawValue
+        message.content = "Merhaba!"
+        message.createdAt = Date()
+        message.status = MessageStatus.completed.rawValue
+        message.conversation = conversation
+
         do {
-            try viewContext.save()
+            try context.save()
         } catch {
-            // Replace this implementation with code to handle the error appropriately.
-            // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-            let nsError = error as NSError
-            fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+            AppLogger.persistence.error(
+                "Preview seed save failed: \(error.localizedDescription)"
+            )
         }
-        return result
+        return controller
     }()
 
     let container: NSPersistentContainer
 
     init(inMemory: Bool = false) {
         container = NSPersistentContainer(name: "AIChat")
-        if inMemory {
-            container.persistentStoreDescriptions.first!.url = URL(fileURLWithPath: "/dev/null")
-        }
-        container.loadPersistentStores(completionHandler: { (storeDescription, error) in
-            if let error = error as NSError? {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
 
-                /*
-                 Typical reasons for an error here include:
-                 * The parent directory does not exist, cannot be created, or disallows writing.
-                 * The persistent store is not accessible, due to permissions or data protection when the device is locked.
-                 * The device is out of space.
-                 * The store could not be migrated to the current model version.
-                 Check the error message to determine what the actual problem was.
-                 */
-                fatalError("Unresolved error \(error), \(error.userInfo)")
+        if inMemory {
+            container.persistentStoreDescriptions.first!.url =
+                URL(fileURLWithPath: "/dev/null")
+        }
+
+        print(container.persistentStoreDescriptions.first?.url)
+        
+        container.loadPersistentStores { _, error in
+            if let error = error as NSError? {
+                // A store that fails to load at launch is unrecoverable for
+                // this app (no user data can be shown or written). We log
+                // first, then crash intentionally. Note the spec's
+                // "don't swallow errors" rule targets SAVE errors — those
+                // are thrown to callers in the repository layer instead.
+                AppLogger.persistence.critical(
+                    "Persistent store failed to load: \(error), \(error.userInfo)"
+                )
+                fatalError("Persistent store failed to load: \(error)")
             }
-        })
+        }
+
+        // Background-context writes become visible to the UI context.
         container.viewContext.automaticallyMergesChangesFromParent = true
+        container.viewContext.name = "viewContext"
+    }
+
+    /// Fresh background context for repository work — long or heavy
+    /// operations never block the main thread (spec §5.2).
+    func newBackgroundContext() -> NSManagedObjectContext {
+        let context = container.newBackgroundContext()
+        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        return context
     }
 }

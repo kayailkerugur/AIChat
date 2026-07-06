@@ -3,24 +3,24 @@
 //  AIChat
 //
 //  Created by Ilker Ugur Kaya on 3.07.2026.
-//  UPDATED (sidebar step): now conversation-scoped and repository-backed.
-//  Messages are loaded from and persisted through MessageRepository, so
-//  the Core Data phase plugs in with zero changes here beyond DI.
 //
-//  Streaming lifecycle (unchanged):
-//    send → persist user message → persist assistant placeholder (.streaming)
-//         → accumulate deltas in memory → persist final state on terminal
+//  UPDATED (error surfacing step): persistence failures are no longer
+//  swallowed with try? — they are logged AND surfaced to the user via
+//  `errorMessage` (acceptance criterion 13).
 //
-//  Design note: deltas are NOT written to the repository one by one —
-//  only the terminal state is. This keeps the Core Data implementation
-//  cheap (one update per response instead of hundreds) at the cost of
-//  a crash mid-stream leaving a stuck `.streaming` row, which the spec
-//  already requires us to repair at launch ("yarım kalmış stream
-//  kayıtları güvenli duruma alınmalı") — handled in the Core Data phase.
+//  Error policy:
+//  - User DATA at risk (message load/save)  → banner + log
+//  - Cosmetic metadata (title, updatedAt)   → log only; a banner for
+//    a failed timestamp bump would be noise, no user data is lost
+//
+//  Streaming deliberately CONTINUES even if persistence fails — the
+//  user still gets their answer; the banner explains that history
+//  may be incomplete.
 //
 
 import Foundation
 import Observation
+import os
 
 @MainActor
 @Observable
@@ -30,6 +30,7 @@ final class ChatViewModel {
 
     private(set) var messages: [ChatMessage] = []
     private(set) var isStreaming = false
+    private(set) var errorMessage: String?
 
     /// Composer text. Bindable from the view.
     var draft: String = ""
@@ -49,9 +50,8 @@ final class ChatViewModel {
     private let aiProvider: AIProvider
     private let messageRepository: MessageRepository
     private let conversationRepository: ConversationRepository
-    /// Called after anything that changes sidebar-visible state
-    /// (title, updatedAt) so the list can refresh its ordering.
     private let onConversationMutated: () -> Void
+    private let logger = AppLogger.persistence
 
     private var streamTask: Task<Void, Never>?
 
@@ -71,10 +71,18 @@ final class ChatViewModel {
 
     // MARK: - Lifecycle
 
-    /// Loads persisted messages. Called once when the conversation opens.
     func load() async {
-        messages = (try? await messageRepository
-            .messages(inConversation: conversation.id)) ?? []
+        do {
+            messages = try await messageRepository
+                .messages(inConversation: conversation.id)
+        } catch {
+            logger.error("load messages failed: \(error.localizedDescription)")
+            errorMessage = "Sohbet geçmişi yüklenemedi."
+        }
+    }
+
+    func dismissError() {
+        errorMessage = nil
     }
 
     // MARK: - User intents
@@ -88,12 +96,14 @@ final class ChatViewModel {
         messages.append(userMessage)
 
         Task {
-            // In-memory store can't fail; the Core Data implementation will
-            // surface save errors through a user-visible state (spec rule:
-            // save errors must not be swallowed).
-            try? await messageRepository.append(
-                userMessage, toConversation: conversation.id
-            )
+            do {
+                try await messageRepository.append(
+                    userMessage, toConversation: conversation.id
+                )
+            } catch {
+                logger.error("append user message failed: \(error.localizedDescription)")
+                errorMessage = "Mesaj kaydedilemedi. Sohbet geçmişiniz eksik olabilir."
+            }
             await autoTitleIfNeeded(from: text)
             await touchConversation()
         }
@@ -116,9 +126,14 @@ final class ChatViewModel {
 
         let removed = messages.remove(at: index)
         Task {
-            try? await messageRepository.deleteMessage(
-                id: removed.id, inConversation: conversation.id
-            )
+            do {
+                try await messageRepository.deleteMessage(
+                    id: removed.id, inConversation: conversation.id
+                )
+            } catch {
+                logger.error("delete for regenerate failed: \(error.localizedDescription)")
+                errorMessage = "Önceki yanıt silinemedi. Geçmişte yinelenen kayıt kalabilir."
+            }
         }
         startStreaming()
     }
@@ -148,9 +163,15 @@ final class ChatViewModel {
             }
 
             // Persist the placeholder so a crash leaves a repairable row.
-            try? await self.messageRepository.append(
-                placeholder, toConversation: self.conversation.id
-            )
+            do {
+                try await self.messageRepository.append(
+                    placeholder, toConversation: self.conversation.id
+                )
+            } catch {
+                self.logger.error("append placeholder failed: \(error.localizedDescription)")
+                self.errorMessage = "Yanıt kaydedilemedi. Sohbet geçmişiniz eksik olabilir."
+                // Streaming continues: the user still gets the answer.
+            }
 
             do {
                 for try await event in self.aiProvider.stream(request: request) {
@@ -163,6 +184,13 @@ final class ChatViewModel {
                         self.mutateMessage(id: assistantID) { $0.status = .completed }
                     }
                 }
+                // Subtle but important: when the CONSUMING task is cancelled,
+                // AsyncThrowingStream ends iteration silently (returns nil)
+                // instead of throwing CancellationError — only producer-side
+                // cancellation throws through the stream. If the loop ended
+                // without a terminal event, resolve the placeholder here so
+                // the message can never be left stuck in `.streaming`.
+                self.finishIfStillStreaming(assistantID: assistantID)
             } catch let error as AIError {
                 self.applyFailure(error, to: assistantID)
             } catch is CancellationError {
@@ -176,12 +204,26 @@ final class ChatViewModel {
 
             // Persist the final state (content + terminal status) once.
             if let final = self.messages.first(where: { $0.id == assistantID }) {
-                try? await self.messageRepository.update(
-                    final, inConversation: self.conversation.id
-                )
+                do {
+                    try await self.messageRepository.update(
+                        final, inConversation: self.conversation.id
+                    )
+                } catch {
+                    self.logger.error("finalize message failed: \(error.localizedDescription)")
+                    self.errorMessage = "Yanıt kaydedilemedi. Sohbet geçmişiniz eksik olabilir."
+                }
             }
             await self.touchConversation()
         }
+    }
+
+    /// Resolves a placeholder that reached the end of iteration without a
+    /// terminal event — which only happens on consumer-side cancellation.
+    private func finishIfStillStreaming(assistantID: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == assistantID }),
+              !messages[index].status.isTerminal
+        else { return }
+        applyFailure(.cancelled, to: assistantID)
     }
 
     private func applyFailure(_ error: AIError, to assistantID: UUID) {
@@ -201,7 +243,7 @@ final class ChatViewModel {
         mutate(&messages[index])
     }
 
-    // MARK: - Conversation bookkeeping
+    // MARK: - Conversation bookkeeping (metadata: log-only on failure)
 
     /// First user message becomes the conversation title (like ChatGPT),
     /// but only while the title is still the default one — a manual
@@ -209,16 +251,25 @@ final class ChatViewModel {
     private func autoTitleIfNeeded(from text: String) async {
         guard conversation.title == SidebarViewModel.defaultTitle else { return }
         let title = String(text.prefix(40))
-        try? await conversationRepository.rename(
-            conversationID: conversation.id, to: title
-        )
+        do {
+            try await conversationRepository.rename(
+                conversationID: conversation.id, to: title
+            )
+        } catch {
+            // Cosmetic metadata — no user data lost, banner would be noise.
+            logger.error("auto-title failed: \(error.localizedDescription)")
+        }
         onConversationMutated()
     }
 
     private func touchConversation() async {
-        try? await conversationRepository.touch(
-            conversationID: conversation.id, at: Date()
-        )
+        do {
+            try await conversationRepository.touch(
+                conversationID: conversation.id, at: Date()
+            )
+        } catch {
+            logger.error("touch conversation failed: \(error.localizedDescription)")
+        }
         onConversationMutated()
     }
 }

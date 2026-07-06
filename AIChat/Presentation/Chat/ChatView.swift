@@ -28,10 +28,25 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let errorMessage = viewModel.errorMessage {
+                ErrorBannerView(message: errorMessage) {
+                    viewModel.dismissError()
+                }
+                .padding([.horizontal, .top], 12)
+            }
+
             if viewModel.messages.isEmpty {
                 emptyState
             } else {
                 messageList
+            }
+
+            if let errorMessage = viewModel.errorMessage {
+                ErrorBannerView(message: errorMessage) {
+                    viewModel.dismissError()
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
             }
 
             Divider()
@@ -44,6 +59,7 @@ struct ChatView: View {
                 onStop: { viewModel.stopStreaming() }
             )
         }
+        .animation(.default, value: viewModel.errorMessage)
     }
 
     // MARK: - Pieces

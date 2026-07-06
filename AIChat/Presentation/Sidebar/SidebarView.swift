@@ -42,6 +42,15 @@ struct SidebarView: View {
             placement: .sidebar,
             prompt: "Sohbetlerde ara"
         )
+        .safeAreaInset(edge: .bottom) {
+            if let errorMessage = viewModel.errorMessage {
+                ErrorBannerView(message: errorMessage) {
+                    viewModel.dismissError()
+                }
+                .padding(8)
+            }
+        }
+        .animation(.default, value: viewModel.errorMessage)
         .onChange(of: viewModel.searchText) {
             Task { await viewModel.refresh() }
         }
@@ -79,6 +88,14 @@ struct SidebarView: View {
                         )
                     }
                 }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let error = viewModel.errorMessage {
+                ErrorBannerView(message: error) {
+                    viewModel.dismissError()
+                }
+                .padding(8)
             }
         }
         .task { await viewModel.refresh() }

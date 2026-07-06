@@ -54,22 +54,9 @@ struct LoginView: View {
 
             // Error banner
             if let message = viewModel.errorMessage {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.yellow)
-                    Text(message)
-                        .font(.callout)
-                    Button {
-                        viewModel.dismissError()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Hata mesajını kapat")
+                ErrorBannerView(message: message) {
+                    viewModel.dismissError()
                 }
-                .padding(12)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
                 .frame(maxWidth: 420)
                 .transition(.opacity)
             }

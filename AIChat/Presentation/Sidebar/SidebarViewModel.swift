@@ -11,6 +11,7 @@
 
 import Foundation
 import Observation
+import os
 
 @MainActor
 @Observable
@@ -21,6 +22,7 @@ final class SidebarViewModel {
     // MARK: - Observed state
 
     private(set) var conversations: [Conversation] = []
+    private(set) var errorMessage: String?
     var selectedConversationID: UUID?
     var searchText: String = ""
 
@@ -34,6 +36,7 @@ final class SidebarViewModel {
     private let conversationRepository: ConversationRepository
     private let defaultProviderID: String
     private let defaultModelID: String
+    private let logger = AppLogger.persistence
 
     /// MainWindowView sets this to drop the cached ChatViewModel
     /// (and cancel its stream) when a conversation is deleted.
@@ -51,14 +54,17 @@ final class SidebarViewModel {
 
     // MARK: - Intents
 
+    func dismissError() {
+        errorMessage = nil
+    }
+
     func refresh() async {
         do {
             conversations = try await conversationRepository
                 .searchConversations(matching: searchText)
         } catch {
-            // In-memory store never throws; Core Data phase will surface
-            // this through a user-visible error state.
-            conversations = []
+            logger.error("refresh conversations failed: \(error.localizedDescription)")
+            errorMessage = "Sohbetler yüklenemedi."
         }
     }
 
@@ -68,24 +74,41 @@ final class SidebarViewModel {
             providerID: defaultProviderID,
             modelID: defaultModelID
         )
-        try? await conversationRepository.create(conversation)
-        await refresh()
-        selectedConversationID = conversation.id
+        do {
+            try await conversationRepository.create(conversation)
+            await refresh()
+            selectedConversationID = conversation.id
+        } catch {
+            logger.error("create conversation failed: \(error.localizedDescription)")
+            errorMessage = "Sohbet oluşturulamadı."
+        }
     }
 
     func rename(conversationID: UUID, to title: String) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        try? await conversationRepository.rename(conversationID: conversationID, to: trimmed)
-        await refresh()
+        do {
+            try await conversationRepository.rename(
+                conversationID: conversationID, to: trimmed
+            )
+            await refresh()
+        } catch {
+            logger.error("rename conversation failed: \(error.localizedDescription)")
+            errorMessage = "Sohbet yeniden adlandırılamadı."
+        }
     }
 
     func delete(conversationID: UUID) async {
-        try? await conversationRepository.delete(conversationID: conversationID)
-        onConversationDeleted?(conversationID)
-        if selectedConversationID == conversationID {
-            selectedConversationID = nil
+        do {
+            try await conversationRepository.delete(conversationID: conversationID)
+            onConversationDeleted?(conversationID)
+            if selectedConversationID == conversationID {
+                selectedConversationID = nil
+            }
+            await refresh()
+        } catch {
+            logger.error("delete conversation failed: \(error.localizedDescription)")
+            errorMessage = "Sohbet silinemedi."
         }
-        await refresh()
     }
 }
