@@ -4,17 +4,6 @@
 //
 //  Created by Ilker Ugur Kaya on 3.07.2026.
 //
-//  Presentation/Chat
-//
-//  Renders a single message. Layout depends on role (user = right,
-//  assistant = left), decorations depend on status:
-//    streaming  → subtle typing indicator while content is empty
-//    cancelled  → "stopped" caption, partial text kept
-//    failed     → safe error text + retry button
-//
-//  Markdown/code-block rendering is plain text for now; the dedicated
-//  Markdown step will swap the Text body without touching this layout.
-//
 
 import SwiftUI
 
@@ -54,9 +43,14 @@ struct MessageBubbleView: View {
             if message.status == .streaming && message.content.isEmpty {
                 // Waiting for the first delta.
                 TypingIndicatorView()
-            } else {
+            } else if isUser {
+                // User input is shown verbatim — rendering the user's own
+                // markdown would silently alter what they typed.
                 Text(message.content)
                     .textSelection(.enabled)
+            } else {
+                // Assistant responses get markdown + code block rendering.
+                MessageContentView(content: message.content)
             }
         }
         .padding(.horizontal, 12)
