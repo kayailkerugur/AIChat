@@ -35,7 +35,9 @@ final class SidebarViewModel {
 
     private let conversationRepository: ConversationRepository
     private let defaultProviderID: String
-    private let defaultModelID: String
+    /// Closure, not a value: the preferred model can change in Settings
+    /// at any time — each new conversation reads it fresh.
+    private let defaultModelID: () -> String
     private let logger = AppLogger.persistence
 
     /// MainWindowView sets this to drop the cached ChatViewModel
@@ -45,7 +47,7 @@ final class SidebarViewModel {
     init(
         conversationRepository: ConversationRepository,
         defaultProviderID: String,
-        defaultModelID: String
+        defaultModelID: @escaping () -> String
     ) {
         self.conversationRepository = conversationRepository
         self.defaultProviderID = defaultProviderID
@@ -72,7 +74,7 @@ final class SidebarViewModel {
         let conversation = Conversation(
             title: Self.defaultTitle,
             providerID: defaultProviderID,
-            modelID: defaultModelID
+            modelID: defaultModelID()
         )
         do {
             try await conversationRepository.create(conversation)

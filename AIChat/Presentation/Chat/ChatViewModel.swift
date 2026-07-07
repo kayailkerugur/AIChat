@@ -153,7 +153,16 @@ final class ChatViewModel {
 
         // History snapshot: everything up to (not including) the placeholder.
         let history = Array(messages.dropLast())
-        let request = ChatRequest(messages: history, modelID: conversation.modelID)
+
+        // Resilience: a conversation may carry a modelID this provider
+        // doesn't know (e.g. chats created back when MockAIProvider was
+        // active carry "mock-fast"). Fall back to the provider's first
+        // model instead of guaranteed 404s.
+        let modelID = aiProvider.supportedModels.contains(where: { $0.id == conversation.modelID })
+            ? conversation.modelID
+            : (aiProvider.supportedModels.first?.id ?? conversation.modelID)
+
+        let request = ChatRequest(messages: history, modelID: modelID)
 
         streamTask = Task { [weak self] in
             guard let self else { return }

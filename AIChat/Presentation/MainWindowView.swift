@@ -22,6 +22,7 @@ struct MainWindowView: View {
 
     @State private var sidebarViewModel: SidebarViewModel
     @State private var chatViewModels = ChatViewModelCache()
+    @State private var isShowingSettings = false
 
     init(session: AuthSession, dependencies: AppDependencies) {
         self.session = session
@@ -29,7 +30,9 @@ struct MainWindowView: View {
         _sidebarViewModel = State(initialValue: SidebarViewModel(
             conversationRepository: dependencies.conversationRepository,
             defaultProviderID: dependencies.aiProvider.id,
-            defaultModelID: dependencies.aiProvider.supportedModels.first?.id ?? ""
+            defaultModelID: { [aiProvider = dependencies.aiProvider] in
+                SettingsViewModel.preferredModelID(for: aiProvider)
+            }
         ))
     }
 
@@ -47,6 +50,15 @@ struct MainWindowView: View {
         }
         .navigationTitle(sidebarViewModel.selectedConversation?.title ?? "AI Chat")
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    isShowingSettings = true
+                } label: {
+                    Label("Ayarlar", systemImage: "gearshape")
+                }
+                .keyboardShortcut(",", modifiers: .command) // macOS convention
+                .accessibilityLabel("Ayarları aç")
+            }
             ToolbarItem(placement: .automatic) {
                 Menu {
                     if let email = session.email {
@@ -68,6 +80,16 @@ struct MainWindowView: View {
             sidebarViewModel.onConversationDeleted = { [chatViewModels] id in
                 chatViewModels.remove(id: id) // also cancels its stream
             }
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView(
+                viewModel: SettingsViewModel(
+                    secureStore: dependencies.secureStore,
+                    aiProvider: dependencies.aiProvider,
+                    authService: dependencies.authService
+                ),
+                session: session
+            )
         }
     }
 

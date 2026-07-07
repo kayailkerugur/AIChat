@@ -24,27 +24,34 @@ final class AppDependencies {
     let aiProvider: AIProvider
     let conversationRepository: ConversationRepository
     let messageRepository: MessageRepository
+    let secureStore: SecureStore
+    let environment: AppEnvironment
 
     init(
         authService: AuthService,
         aiProvider: AIProvider,
         conversationRepository: ConversationRepository,
-        messageRepository: MessageRepository
+        messageRepository: MessageRepository,
+        secureStore: SecureStore,
+        environment: AppEnvironment
     ) {
         self.authService = authService
         self.aiProvider = aiProvider
         self.conversationRepository = conversationRepository
         self.messageRepository = messageRepository
+        self.secureStore = secureStore
+        self.environment = environment
     }
 
     /// Default configuration used by the running app.
     static func makeDefault() -> AppDependencies {
+        let environment = AppEnvironment.production
+        let secureStore = KeychainStore()
         let chatStore = CoreDataChatRepository(persistence: .shared)
 
         // Launch repair: any message left in a non-terminal state by a
         // crash/force-quit is moved to a safe, explainable state before
         // the UI ever loads it.
-        
         Task {
             do {
                 try await chatStore.repairInterruptedStreams()
@@ -57,14 +64,19 @@ final class AppDependencies {
 
         return AppDependencies(
             authService: MockAuthService(),
-            aiProvider: MockAIProvider(),
+            aiProvider: GeminiProvider(
+                configuration: environment.gemini,
+                secureStore: secureStore
+            ),
             conversationRepository: chatStore,
-            messageRepository: chatStore
+            messageRepository: chatStore,
+            secureStore: secureStore,
+            environment: environment
         )
     }
 
-    /// Handy for SwiftUI previews & UI experiments — stays in-memory,
-    /// no disk writes from previews.
+    /// Handy for SwiftUI previews & UI experiments — stays fully offline:
+    /// mock AI, in-memory persistence, in-memory secure store.
     static func makePreview(
         auth authBehavior: MockAuthService.Behavior = .init(latency: .zero),
         ai aiBehavior: MockAIProvider.Behavior = .init(chunkDelay: .milliseconds(40))
@@ -74,7 +86,9 @@ final class AppDependencies {
             authService: MockAuthService(behavior: authBehavior),
             aiProvider: MockAIProvider(behavior: aiBehavior),
             conversationRepository: chatStore,
-            messageRepository: chatStore
+            messageRepository: chatStore,
+            secureStore: InMemorySecureStore(),
+            environment: .production
         )
     }
 }
