@@ -13,11 +13,15 @@
 
 import Foundation
 
+/// Namespaced identifiers for stored secrets. Raw values become the
+/// Keychain account name — stable strings, do not rename casually.
 enum SecureStoreKey: String, CaseIterable {
     case geminiAPIKey = "ai.gemini.api-key"
-    // Coming in the OAuth phase:
-    // case oauthAccessToken  = "auth.google.access-token"
-    // case oauthRefreshToken = "auth.google.refresh-token"
+    case oauthAccessToken = "auth.google.access-token"
+    case oauthRefreshToken = "auth.google.refresh-token"
+    /// Access token expiry as a unix timestamp string — stored alongside
+    /// the token so restore can decide between reuse and refresh.
+    case oauthTokenExpiry = "auth.google.token-expiry"
 }
 
 enum SecureStoreError: Error, Equatable {

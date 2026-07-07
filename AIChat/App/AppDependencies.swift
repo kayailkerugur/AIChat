@@ -61,7 +61,12 @@ final class AppDependencies {
         }
 
         return AppDependencies(
-            authService: MockAuthService(),
+            // THE swap the architecture was built for: mock → real OAuth,
+            // one line, nothing above the AuthService protocol changes.
+            authService: OAuthService(
+                configuration: environment.googleOAuth,
+                secureStore: secureStore
+            ),
             aiProviders: DefaultAIProviderRegistry(providers: [
                 // First provider = app-wide fallback.
                 GeminiProvider(
