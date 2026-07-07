@@ -4,6 +4,13 @@
 //
 //  Created by Ilker Ugur Kaya on 6.07.2026.
 //
+//  Settings screen (spec §8 screen table): AI model selection,
+//  API configuration, user profile and logout. Presented as a sheet
+//  from the main window toolbar.
+//
+//  The API key field is a SecureField and is never pre-filled —
+//  we only indicate whether a key is stored.
+//
 
 import SwiftUI
 
@@ -25,8 +32,12 @@ struct SettingsView: View {
                 // MARK: AI configuration
                 Section("Yapay Zekâ") {
                     Picker("Varsayılan model", selection: Bindable(viewModel).selectedModelID) {
-                        ForEach(viewModel.availableModels) { model in
-                            Text(model.displayName).tag(model.id)
+                        ForEach(viewModel.providerSections) { section in
+                            Section(section.name) {
+                                ForEach(section.models) { model in
+                                    Text(model.displayName).tag(model.id)
+                                }
+                            }
                         }
                     }
                     .help("Yeni sohbetlerde kullanılacak model. Mevcut sohbetler kendi modelini korur.")
@@ -112,7 +123,7 @@ struct SettingsView: View {
     SettingsView(
         viewModel: SettingsViewModel(
             secureStore: InMemorySecureStore(),
-            aiProvider: MockAIProvider(),
+            registry: DefaultAIProviderRegistry(providers: [MockAIProvider()]),
             authService: MockAuthService()
         ),
         session: AuthSession(

@@ -4,6 +4,11 @@
 //
 //  Created by Ilker Ugur Kaya on 6.07.2026.
 //
+//  UPDATED (multi-provider step): the model picker now spans ALL
+//  registered providers, grouped into sections. Selecting a model
+//  implicitly selects its provider — new conversations carry both
+//  (Conversation.providerID + modelID).
+//
 
 import Foundation
 import Observation
@@ -29,42 +34,68 @@ final class SettingsViewModel {
         }
     }
 
-    var availableModels: [AIModel] { aiProvider.supportedModels }
+    // MARK: - Picker content
+
+    struct ProviderSection: Identifiable {
+        let id: String
+        let name: String
+        let models: [AIModel]
+    }
+
+    var providerSections: [ProviderSection] {
+        registry.providers.map { provider in
+            ProviderSection(
+                id: provider.id,
+                name: Self.displayName(forProviderID: provider.id),
+                models: provider.supportedModels
+            )
+        }
+    }
 
     // MARK: - Dependencies
 
     private let secureStore: SecureStore
-    private let aiProvider: AIProvider
+    private let registry: AIProviderRegistry
     private let authService: AuthService
     private let logger = AppLogger.auth
 
     private static let modelKey = "settings.defaultModelID"
 
-    /// Reads the user's preferred default model (falls back to the
-    /// provider's first model). Used when creating new conversations.
-    static func preferredModelID(for provider: AIProvider) -> String {
-        UserDefaults.standard.string(forKey: modelKey)
-            ?? provider.supportedModels.first?.id
-            ?? ""
-    }
-
     init(
         secureStore: SecureStore,
-        aiProvider: AIProvider,
+        registry: AIProviderRegistry,
         authService: AuthService
     ) {
         self.secureStore = secureStore
-        self.aiProvider = aiProvider
+        self.registry = registry
         self.authService = authService
 
         // Model preference is NOT a secret — UserDefaults is the right
         // home for it (unlike the API key).
-        let stored = UserDefaults.standard.string(forKey: Self.modelKey)
-        self.selectedModelID = stored
-            ?? aiProvider.supportedModels.first?.id
-            ?? ""
+        self.selectedModelID = Self.preferredModel(in: registry).id
 
         refreshKeyStatus()
+    }
+
+    /// Reads the user's preferred default model across all providers,
+    /// falling back to the first model of the first provider.
+    static func preferredModel(in registry: AIProviderRegistry) -> AIModel {
+        if let storedID = UserDefaults.standard.string(forKey: modelKey),
+           let model = registry.allModels.first(where: { $0.id == storedID }) {
+            return model
+        }
+        // Registry guarantees at least one provider; a provider with an
+        // empty model list would be a programmer error surfaced here.
+        return registry.allModels.first
+            ?? AIModel(id: "", displayName: "—", providerID: "")
+    }
+
+    private static func displayName(forProviderID id: String) -> String {
+        switch id {
+        case "gemini": return "Google Gemini"
+        case "mock":   return "Mock (Test)"
+        default:       return id.capitalized
+        }
     }
 
     // MARK: - API key intents

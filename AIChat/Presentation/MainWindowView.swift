@@ -6,6 +6,9 @@
 //
 //  Presentation/ (main window)
 //
+//  UPDATED (sidebar step): NavigationSplitView with the conversation
+//  sidebar on the left and the active chat on the right.
+//
 //  ChatViewModels are cached per conversation in a plain (non-observed)
 //  holder so that:
 //  - switching conversations does NOT cancel an in-flight stream,
@@ -29,9 +32,8 @@ struct MainWindowView: View {
         self.dependencies = dependencies
         _sidebarViewModel = State(initialValue: SidebarViewModel(
             conversationRepository: dependencies.conversationRepository,
-            defaultProviderID: dependencies.aiProvider.id,
-            defaultModelID: { [aiProvider = dependencies.aiProvider] in
-                SettingsViewModel.preferredModelID(for: aiProvider)
+            defaultModel: { [registry = dependencies.aiProviders] in
+                SettingsViewModel.preferredModel(in: registry)
             }
         ))
     }
@@ -85,7 +87,7 @@ struct MainWindowView: View {
             SettingsView(
                 viewModel: SettingsViewModel(
                     secureStore: dependencies.secureStore,
-                    aiProvider: dependencies.aiProvider,
+                    registry: dependencies.aiProviders,
                     authService: dependencies.authService
                 ),
                 session: session
@@ -113,9 +115,15 @@ struct MainWindowView: View {
         if let cached = chatViewModels.store[conversation.id] {
             return cached
         }
+        // Resolve the provider this conversation was created with —
+        // the registry's fallback covers conversations whose provider
+        // is no longer registered.
+        let provider = dependencies.aiProviders
+            .resolvedProvider(forID: conversation.providerID)
+
         let viewModel = ChatViewModel(
             conversation: conversation,
-            aiProvider: dependencies.aiProvider,
+            aiProvider: provider,
             messageRepository: dependencies.messageRepository,
             conversationRepository: dependencies.conversationRepository,
             onConversationMutated: { [sidebarViewModel] in

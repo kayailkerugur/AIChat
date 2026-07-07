@@ -4,9 +4,10 @@
 //
 //  Created by Ilker Ugur Kaya on 3.07.2026.
 //
-//  Owns the conversation list: load, create, rename, delete, search
-//  and the current selection. Talks to ConversationRepository only —
-//  it has no idea whether the store is in-memory or Core Data.
+//  Presentation/Sidebar
+//
+//  UPDATED (error surfacing step): repository failures set
+//  `errorMessage` instead of being swallowed (acceptance criterion 13).
 //
 
 import Foundation
@@ -34,10 +35,10 @@ final class SidebarViewModel {
     // MARK: - Dependencies
 
     private let conversationRepository: ConversationRepository
-    private let defaultProviderID: String
-    /// Closure, not a value: the preferred model can change in Settings
-    /// at any time — each new conversation reads it fresh.
-    private let defaultModelID: () -> String
+    /// Closure, not a value: the preferred model (and thus provider)
+    /// can change in Settings at any time — each new conversation
+    /// reads it fresh.
+    private let defaultModel: () -> AIModel
     private let logger = AppLogger.persistence
 
     /// MainWindowView sets this to drop the cached ChatViewModel
@@ -46,12 +47,10 @@ final class SidebarViewModel {
 
     init(
         conversationRepository: ConversationRepository,
-        defaultProviderID: String,
-        defaultModelID: @escaping () -> String
+        defaultModel: @escaping () -> AIModel
     ) {
         self.conversationRepository = conversationRepository
-        self.defaultProviderID = defaultProviderID
-        self.defaultModelID = defaultModelID
+        self.defaultModel = defaultModel
     }
 
     // MARK: - Intents
@@ -71,10 +70,11 @@ final class SidebarViewModel {
     }
 
     func createConversation() async {
+        let model = defaultModel()
         let conversation = Conversation(
             title: Self.defaultTitle,
-            providerID: defaultProviderID,
-            modelID: defaultModelID()
+            providerID: model.providerID,
+            modelID: model.id
         )
         do {
             try await conversationRepository.create(conversation)

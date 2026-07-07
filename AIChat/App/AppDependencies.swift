@@ -5,13 +5,11 @@
 //  Created by Ilker Ugur Kaya on 2.07.2026.
 //
 //  Composition root. This is the ONLY place in the app where concrete
-//  implementations (Mock…, InMemory…, CoreData…, OAuth…) are instantiated.
-//  Everything else receives dependencies as protocols.
+//  implementations are instantiated.
 //
-//  UPDATED (Core Data step): the running app now persists through
-//  CoreDataChatRepository; previews and tests keep InMemoryChatRepository.
-//  Exactly one line of difference between the two factories — the
-//  swap the architecture was designed for.
+//  UPDATED (multi-provider step): a provider REGISTRY replaces the
+//  single provider. The running app registers Gemini (default) and
+//  Mock — adding a future provider is one line in makeDefault().
 //
 
 import Foundation
@@ -21,7 +19,7 @@ import os
 final class AppDependencies {
 
     let authService: AuthService
-    let aiProvider: AIProvider
+    let aiProviders: AIProviderRegistry
     let conversationRepository: ConversationRepository
     let messageRepository: MessageRepository
     let secureStore: SecureStore
@@ -29,14 +27,14 @@ final class AppDependencies {
 
     init(
         authService: AuthService,
-        aiProvider: AIProvider,
+        aiProviders: AIProviderRegistry,
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
         secureStore: SecureStore,
         environment: AppEnvironment
     ) {
         self.authService = authService
-        self.aiProvider = aiProvider
+        self.aiProviders = aiProviders
         self.conversationRepository = conversationRepository
         self.messageRepository = messageRepository
         self.secureStore = secureStore
@@ -64,10 +62,15 @@ final class AppDependencies {
 
         return AppDependencies(
             authService: MockAuthService(),
-            aiProvider: GeminiProvider(
-                configuration: environment.gemini,
-                secureStore: secureStore
-            ),
+            aiProviders: DefaultAIProviderRegistry(providers: [
+                // First provider = app-wide fallback.
+                GeminiProvider(
+                    configuration: environment.gemini,
+                    secureStore: secureStore
+                ),
+                MockAIProvider(),
+                // Future providers register here — one line each.
+            ]),
             conversationRepository: chatStore,
             messageRepository: chatStore,
             secureStore: secureStore,
@@ -75,8 +78,7 @@ final class AppDependencies {
         )
     }
 
-    /// Handy for SwiftUI previews & UI experiments — stays fully offline:
-    /// mock AI, in-memory persistence, in-memory secure store.
+    /// Handy for SwiftUI previews & UI experiments — stays fully offline.
     static func makePreview(
         auth authBehavior: MockAuthService.Behavior = .init(latency: .zero),
         ai aiBehavior: MockAIProvider.Behavior = .init(chunkDelay: .milliseconds(40))
@@ -84,7 +86,9 @@ final class AppDependencies {
         let chatStore = InMemoryChatRepository()
         return AppDependencies(
             authService: MockAuthService(behavior: authBehavior),
-            aiProvider: MockAIProvider(behavior: aiBehavior),
+            aiProviders: DefaultAIProviderRegistry(providers: [
+                MockAIProvider(behavior: aiBehavior)
+            ]),
             conversationRepository: chatStore,
             messageRepository: chatStore,
             secureStore: InMemorySecureStore(),
