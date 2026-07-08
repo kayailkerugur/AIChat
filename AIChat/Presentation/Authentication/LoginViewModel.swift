@@ -18,8 +18,12 @@ final class LoginViewModel {
     private let authService: AuthService
     private var loginTask: Task<Void, Never>?
 
-    init(authService: AuthService) {
+    init(authService: AuthService, initialError: AuthError? = nil) {
         self.authService = authService
+        // Restore failures (e.g. sessionExpired) surface here so the user
+        // knows WHY they landed on the login screen. Benign reasons have
+        // a nil errorDescription and show nothing.
+        self.errorMessage = initialError?.errorDescription
     }
 
     func loginTapped() {

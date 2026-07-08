@@ -30,9 +30,12 @@ struct RootView: View {
             case .checkingSession:
                 SessionCheckView()
 
-            case .loggedOut:
+            case .loggedOut(let reason):
                 LoginView(
-                    viewModel: LoginViewModel(authService: dependencies.authService)
+                    viewModel: LoginViewModel(
+                        authService: dependencies.authService,
+                        initialError: reason
+                    )
                 )
 
             case .loggedIn(let session):
@@ -44,7 +47,6 @@ struct RootView: View {
     }
 }
 
-// MARK: - Temporary placeholder (replaced in the Chat phase)
 
 #Preview("Full flow (mock)") {
     RootView(dependencies: .makePreview(auth: .init(latency: .seconds(1))))

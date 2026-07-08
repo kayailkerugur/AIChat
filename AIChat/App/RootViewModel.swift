@@ -15,8 +15,11 @@ final class RootViewModel {
     enum State: Equatable {
         /// App just launched; we are checking Keychain / stored session.
         case checkingSession
-        /// No valid session → show Login.
-        case loggedOut
+        /// No valid session → show Login. `reason` carries a restore
+        /// failure worth telling the user about (e.g. sessionExpired);
+        /// benign cases like noStoredSession have a nil errorDescription
+        /// and therefore render no banner.
+        case loggedOut(reason: AuthError?)
         /// Valid session → show the main window (sidebar + chat).
         case loggedIn(AuthSession)
     }
@@ -49,9 +52,12 @@ final class RootViewModel {
             let session = try await authService.restoreSession()
             state = .loggedIn(session)
         } catch {
-            // noStoredSession / sessionExpired / anything else → Login.
-            // Login screen can show a message for `sessionExpired` later if desired.
-            state = .loggedOut
+            // The reason flows to the Login screen. Benign outcomes
+            // (noStoredSession) carry a nil errorDescription, so a banner
+            // appears ONLY for meaningful failures: sessionExpired,
+            // network, secureStorage (spec §8: "session süresi doldu"
+            // is a required error state).
+            state = .loggedOut(reason: error as? AuthError)
         }
     }
 
@@ -59,7 +65,8 @@ final class RootViewModel {
         if let session {
             state = .loggedIn(session)
         } else {
-            state = .loggedOut
+            // Session cleared at runtime = user-initiated logout → no banner.
+            state = .loggedOut(reason: nil)
         }
     }
 }
