@@ -43,23 +43,44 @@ struct MainWindowView: View {
             SidebarView(viewModel: sidebarViewModel)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 320)
         } detail: {
-            if let conversation = sidebarViewModel.selectedConversation {
+            if isShowingSettings {
+                // Settings renders IN the detail column, like a chat
+                // screen (team review, item 1) — not as a modal sheet.
+                SettingsView(
+                    viewModel: SettingsViewModel(
+                        secureStore: dependencies.secureStore,
+                        registry: dependencies.aiProviders,
+                        authService: dependencies.authService
+                    ),
+                    session: session
+                )
+            } else if let conversation = sidebarViewModel.selectedConversation {
                 ChatView(viewModel: viewModel(for: conversation))
                     .id(conversation.id) // fresh view identity per conversation
             } else {
                 noSelectionView
             }
         }
-        .navigationTitle(sidebarViewModel.selectedConversation?.title ?? "AI Chat")
+        .navigationTitle(
+            isShowingSettings
+                ? "Ayarlar"
+                : (sidebarViewModel.selectedConversation?.title ?? "AI Chat")
+        )
+        .onChange(of: sidebarViewModel.selectedConversationID) { _, newValue in
+            // Picking a conversation in the sidebar leaves Settings.
+            if newValue != nil {
+                isShowingSettings = false
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {
-                    isShowingSettings = true
+                    isShowingSettings.toggle()
                 } label: {
                     Label("Ayarlar", systemImage: "gearshape")
                 }
                 .keyboardShortcut(",", modifiers: .command) // macOS convention
-                .accessibilityLabel("Ayarları aç")
+                .accessibilityLabel(isShowingSettings ? "Ayarlardan çık" : "Ayarları aç")
             }
             ToolbarItem(placement: .automatic) {
                 Menu {
@@ -82,16 +103,6 @@ struct MainWindowView: View {
             sidebarViewModel.onConversationDeleted = { [chatViewModels] id in
                 chatViewModels.remove(id: id) // also cancels its stream
             }
-        }
-        .sheet(isPresented: $isShowingSettings) {
-            SettingsView(
-                viewModel: SettingsViewModel(
-                    secureStore: dependencies.secureStore,
-                    registry: dependencies.aiProviders,
-                    authService: dependencies.authService
-                ),
-                session: session
-            )
         }
     }
 

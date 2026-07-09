@@ -28,8 +28,8 @@ final class KeychainStore: SecureStore {
 
     // MARK: - SecureStore
 
-    func read(_ key: SecureStoreKey) throws -> String? {
-        var query = baseQuery(for: key)
+    func read(key: String) throws -> String? {
+        var query = baseQuery(account: key)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -45,17 +45,17 @@ final class KeychainStore: SecureStore {
         case errSecItemNotFound:
             return nil
         default:
-            logger.error("Keychain read failed for \(key.rawValue): status \(status)")
+            logger.error("Keychain read failed for \(key): status \(status)")
             throw SecureStoreError.unhandled(status: status)
         }
     }
 
-    func save(_ value: String, for key: SecureStoreKey) throws {
+    func save(_ value: String, forKey key: String) throws {
         let data = Data(value.utf8)
 
         // Try update first; add if the item doesn't exist yet.
         let updateStatus = SecItemUpdate(
-            baseQuery(for: key) as CFDictionary,
+            baseQuery(account: key) as CFDictionary,
             [kSecValueData as String: data] as CFDictionary
         )
 
@@ -63,7 +63,7 @@ final class KeychainStore: SecureStore {
         case errSecSuccess:
             return
         case errSecItemNotFound:
-            var addQuery = baseQuery(for: key)
+            var addQuery = baseQuery(account: key)
             addQuery[kSecValueData as String] = data
             // Accessible after first unlock — survives relaunch, not
             // exposed while the machine is locked at boot.
@@ -71,31 +71,31 @@ final class KeychainStore: SecureStore {
 
             let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             guard addStatus == errSecSuccess else {
-                logger.error("Keychain add failed for \(key.rawValue): status \(addStatus)")
+                logger.error("Keychain add failed for \(key): status \(addStatus)")
                 throw SecureStoreError.unhandled(status: addStatus)
             }
         default:
-            logger.error("Keychain update failed for \(key.rawValue): status \(updateStatus)")
+            logger.error("Keychain update failed for \(key): status \(updateStatus)")
             throw SecureStoreError.unhandled(status: updateStatus)
         }
     }
 
-    func delete(_ key: SecureStoreKey) throws {
-        let status = SecItemDelete(baseQuery(for: key) as CFDictionary)
+    func delete(key: String) throws {
+        let status = SecItemDelete(baseQuery(account: key) as CFDictionary)
         // Deleting something that isn't there is fine (idempotent logout).
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            logger.error("Keychain delete failed for \(key.rawValue): status \(status)")
+            logger.error("Keychain delete failed for \(key): status \(status)")
             throw SecureStoreError.unhandled(status: status)
         }
     }
 
     // MARK: - Helpers
 
-    private func baseQuery(for key: SecureStoreKey) -> [String: Any] {
+    private func baseQuery(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: key.rawValue,
+            kSecAttrAccount as String: account,
         ]
     }
 }
@@ -106,17 +106,17 @@ final class KeychainStore: SecureStore {
 /// and SwiftUI previews so they never touch the real Keychain.
 final class InMemorySecureStore: SecureStore {
 
-    private var storage: [SecureStoreKey: String] = [:]
+    private var storage: [String: String] = [:]
 
-    func read(_ key: SecureStoreKey) throws -> String? {
+    func read(key: String) throws -> String? {
         storage[key]
     }
 
-    func save(_ value: String, for key: SecureStoreKey) throws {
+    func save(_ value: String, forKey key: String) throws {
         storage[key] = value
     }
 
-    func delete(_ key: SecureStoreKey) throws {
+    func delete(key: String) throws {
         storage.removeValue(forKey: key)
     }
 }

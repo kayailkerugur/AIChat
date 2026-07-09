@@ -19,8 +19,6 @@ struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
     let session: AuthSession
 
-    @Environment(\.dismiss) private var dismiss
-
     init(viewModel: SettingsViewModel, session: AuthSession) {
         _viewModel = State(initialValue: viewModel)
         self.session = session
@@ -82,14 +80,15 @@ struct SettingsView: View {
                     LabeledContent("Sağlayıcı", value: session.providerID)
 
                     Button("Çıkış Yap", role: .destructive) {
-                        Task {
-                            await viewModel.logout()
-                            dismiss()
-                        }
+                        Task { await viewModel.logout() }
+                        // No dismiss needed: the root coordinator observes
+                        // sessionUpdates and routes to Login by itself.
                     }
                 }
             }
             .formStyle(.grouped)
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
 
             // MARK: Feedback banners
             if let info = viewModel.infoMessage {
@@ -104,16 +103,10 @@ struct SettingsView: View {
                     viewModel.dismissMessages()
                 }
                 .padding([.horizontal, .bottom], 12)
+                .frame(maxWidth: 640)
             }
         }
-        .frame(width: 480, height: 420)
-        .navigationTitle("Ayarlar")
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Kapat") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-            }
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.default, value: viewModel.infoMessage)
         .animation(.default, value: viewModel.errorMessage)
     }
@@ -134,4 +127,5 @@ struct SettingsView: View {
             expiresAt: nil
         )
     )
+    .frame(width: 760, height: 560)
 }

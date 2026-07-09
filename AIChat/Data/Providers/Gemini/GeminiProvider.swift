@@ -10,7 +10,9 @@ import Foundation
 import os
 
 final class GeminiProvider: AIProvider {
-
+    func refreshModels() async throws -> [AIModel] {
+        return []
+    }
     // MARK: - AIProvider
 
     let id = "gemini"

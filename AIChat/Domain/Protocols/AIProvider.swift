@@ -17,8 +17,17 @@ protocol AIProvider: AnyObject {
     /// Stable identifier, e.g. "openai", "mock". Stored on Conversation.providerID.
     var id: String { get }
 
-    /// Models this provider can serve. Shown in Settings for selection.
+    /// Models this provider can serve. Synchronous — reads the cached
+    /// list (fetched at registration time), so pickers and fallback
+    /// logic never await the network.
     var supportedModels: [AIModel] { get }
+
+    /// Re-fetches the model list from the provider (GET /models on
+    /// OpenAI-compatible endpoints) and refreshes the cache. Called
+    /// when a provider is registered — doubling as a connectivity and
+    /// credential check — and from a "refresh models" action in Settings.
+    @discardableResult
+    func refreshModels() async throws -> [AIModel]
 
     /// Streams the assistant response for the given request.
     ///

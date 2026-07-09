@@ -13,10 +13,10 @@
 
 import Foundation
 
-/// Namespaced identifiers for stored secrets. Raw values become the
-/// Keychain account name — stable strings, do not rename casually.
+/// Well-known, compile-time keys. Raw values are the Keychain account
+/// names — stable strings, do not rename casually.
 enum SecureStoreKey: String, CaseIterable {
-    case geminiAPIKey = "ai.gemini.api-key"
+    case geminiAPIKey = "ai.gemini.api-key" // legacy; retires with GeminiProvider
     case oauthAccessToken = "auth.google.access-token"
     case oauthRefreshToken = "auth.google.refresh-token"
     /// Access token expiry as a unix timestamp string — stored alongside
@@ -33,9 +33,25 @@ enum SecureStoreError: Error, Equatable {
 
 protocol SecureStore: AnyObject {
     /// Returns nil when no value exists for the key.
-    func read(_ key: SecureStoreKey) throws -> String?
+    func read(key: String) throws -> String?
     /// Creates or overwrites the value.
-    func save(_ value: String, for key: SecureStoreKey) throws
+    func save(_ value: String, forKey key: String) throws
     /// Deleting a non-existent key is not an error.
-    func delete(_ key: SecureStoreKey) throws
+    func delete(key: String) throws
+}
+
+// MARK: - Typed convenience for well-known keys
+
+extension SecureStore {
+    func read(_ key: SecureStoreKey) throws -> String? {
+        try read(key: key.rawValue)
+    }
+
+    func save(_ value: String, for key: SecureStoreKey) throws {
+        try save(value, forKey: key.rawValue)
+    }
+
+    func delete(_ key: SecureStoreKey) throws {
+        try delete(key: key.rawValue)
+    }
 }

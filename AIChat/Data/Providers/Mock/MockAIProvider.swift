@@ -16,6 +16,10 @@
 import Foundation
 
 final class MockAIProvider: AIProvider {
+    func refreshModels() async throws -> [AIModel] {
+        return []
+    }
+    
 
     // MARK: - Configuration
 
