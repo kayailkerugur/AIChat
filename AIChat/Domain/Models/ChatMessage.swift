@@ -45,6 +45,7 @@ struct ChatMessage: Identifiable, Equatable {
     let id: UUID
     let role: MessageRole
     var content: String
+    var attachments: [ChatAttachment]
     let createdAt: Date
     var status: MessageStatus
     /// Safe, user-facing error summary. Raw payloads never end up here.
@@ -54,6 +55,7 @@ struct ChatMessage: Identifiable, Equatable {
         id: UUID = UUID(),
         role: MessageRole,
         content: String,
+        attachments: [ChatAttachment] = [],
         createdAt: Date = Date(),
         status: MessageStatus = .completed,
         errorDescription: String? = nil
@@ -61,6 +63,7 @@ struct ChatMessage: Identifiable, Equatable {
         self.id = id
         self.role = role
         self.content = content
+        self.attachments = attachments
         self.createdAt = createdAt
         self.status = status
         self.errorDescription = errorDescription

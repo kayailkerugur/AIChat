@@ -8,6 +8,7 @@ SwiftUI ile geliştirilmiş, OAuth 2.0 (PKCE) girişli, streaming yanıtlı ve C
 - OpenAI-compatible sağlayıcılarla gerçek zamanlı streaming yanıtlar; devam eden yanıtı durdurma ve yeniden üretme
 - Çoklu konuşma: sidebar, arama (başlık + mesaj içeriği), yeniden adlandırma, cascade silme
 - Markdown ve kod bloğu render'ı (yatay kaydırma + kopyalama)
+- Görsel ve doküman ekleri: image dosyaları multimodal sağlayıcılara, PDF/text dokümanları çıkarılan metin olarak gönderilir
 - Core Data kalıcılığı — konuşmalar uygulama yeniden açıldığında geri yüklenir
 - Kullanıcı tarafından yönetilen AI sağlayıcıları: Gemini, OpenAI, Ollama, LM Studio veya özel OpenAI-compatible endpoint
 - Token ve API anahtarları yalnızca Keychain'de; oturum yenileme ve güvenli logout
@@ -91,6 +92,12 @@ Not: ChatGPT Plus aboneliği OpenAI API kredisi yerine geçmez; OpenAI API için
 
 Şemayı seçip **⌘R**. İlk açılışta Login ekranı gelir; "Giriş Yap" sistem tarayıcı oturumu açar (parola uygulamaya asla girmez). Girişten sonra oturum Keychain üzerinden korunur — sonraki açılışlarda login ekranı atlanır. Ayarlar → Çıkış Yap tüm yerel kimlik bilgilerini temizler.
 
+## Ek Dosyalar
+
+Composer'daki ataç butonu ile görsel, PDF ve metin tabanlı doküman eklenebilir. Görseller OpenAI-compatible `image_url` content part olarak data URL biçiminde gönderilir. PDF ve text/json/csv dosyaları uygulama içinde metne çevrilir ve istek bağlamına text part olarak eklenir.
+
+Ekler şu an gönderim anında modele iletilir; dosyanın binary içeriği Core Data geçmişine kalıcı olarak yazılmaz. Konuşma geçmişinde mesaj metni kalır, aynı oturumda gönderilen mesaj balonunda ek adı görünür.
+
 ## Testler
 
 **⌘U** ile çalıştırılır (ya da `xcodebuild test -scheme AIChat`). ~44 unit test şu alanları kapsar:
@@ -114,4 +121,4 @@ Dört katman, tek yönlü bağımlılık: **Presentation → Domain ← Data / I
 - Kod bloklarında syntax highlighting yok (bilinçli kapsam sınırı)
 - Token kullanım bilgisi (`usage` event'i) üretiliyor ancak arayüzde gösterilmiyor
 - Sidebar yenilemesi callback tabanlı; store-driven güncellemeye taşınabilir
-- Resim ve doküman ekleri henüz desteklenmiyor
+- Ek dosya içerikleri Core Data'ya kalıcı olarak yazılmıyor

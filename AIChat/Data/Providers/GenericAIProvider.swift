@@ -224,7 +224,64 @@ private struct ChatCompletionsRequest: Encodable {
 
     struct Message: Encodable {
         let role: String
-        let content: String
+        let content: MessageContent
+    }
+
+    enum MessageContent: Encodable {
+        case text(String)
+        case parts([ContentPart])
+
+        func encode(to encoder: Encoder) throws {
+            switch self {
+            case .text(let text):
+                var container = encoder.singleValueContainer()
+                try container.encode(text)
+            case .parts(let parts):
+                var container = encoder.singleValueContainer()
+                try container.encode(parts)
+            }
+        }
+    }
+
+    struct ContentPart: Encodable {
+        struct ImageURL: Encodable {
+            let url: String
+        }
+
+        let type: String
+        let text: String?
+        let imageURL: ImageURL?
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case text
+            case imageURL = "image_url"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(type, forKey: .type)
+            if let text {
+                try container.encode(text, forKey: .text)
+            }
+            if let imageURL {
+                try container.encode(imageURL, forKey: .imageURL)
+            }
+        }
+
+        static func text(_ value: String) -> ContentPart {
+            ContentPart(type: "text", text: value, imageURL: nil)
+        }
+
+        static func image(_ attachment: ChatAttachment) -> ContentPart {
+            ContentPart(
+                type: "image_url",
+                text: nil,
+                imageURL: ImageURL(
+                    url: "data:\(attachment.mimeType);base64,\(attachment.data.base64EncodedString())"
+                )
+            )
+        }
     }
 
     let model: String
@@ -235,12 +292,47 @@ private struct ChatCompletionsRequest: Encodable {
         self.model = request.modelID
         self.stream = true
         self.messages = request.messages.compactMap { message in
-            guard !message.content.isEmpty else { return nil }
+            let content = Self.content(from: message)
+            guard content != nil else { return nil }
             return Message(
                 role: message.role.rawValue,
-                content: message.content
+                content: content!
             )
         }
+    }
+
+    private static func content(from message: ChatMessage) -> MessageContent? {
+        guard !message.attachments.isEmpty else {
+            return message.content.isEmpty ? nil : .text(message.content)
+        }
+
+        var parts: [ContentPart] = []
+        if !message.content.isEmpty {
+            parts.append(.text(message.content))
+        }
+
+        for attachment in message.attachments {
+            switch attachment.kind {
+            case .image:
+                parts.append(.image(attachment))
+            case .document:
+                if let text = attachment.extractedText, !text.isEmpty {
+                    parts.append(.text("""
+                    Document: \(attachment.fileName)
+
+                    \(text)
+                    """))
+                } else {
+                    parts.append(.text("""
+                    Attached document could not be read as text.
+                    File: \(attachment.fileName)
+                    MIME type: \(attachment.mimeType)
+                    """))
+                }
+            }
+        }
+
+        return parts.isEmpty ? nil : .parts(parts)
     }
 }
 

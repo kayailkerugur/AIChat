@@ -22,6 +22,7 @@ struct MessageBubbleView: View {
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
                 bubble
+                attachmentChips
 
                 statusFooter
             }
@@ -32,6 +33,25 @@ struct MessageBubbleView: View {
         .contextMenu {
             Button("Kopyala") { copyToPasteboard(message.content) }
                 .disabled(message.content.isEmpty)
+        }
+    }
+
+    @ViewBuilder
+    private var attachmentChips: some View {
+        if !message.attachments.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(message.attachments) { attachment in
+                    Label(
+                        attachment.fileName,
+                        systemImage: attachment.kind == .image ? "photo" : "doc.text"
+                    )
+                    .font(.caption)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.quaternary.opacity(0.45), in: Capsule())
+                }
+            }
         }
     }
 

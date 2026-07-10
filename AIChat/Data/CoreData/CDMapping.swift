@@ -44,6 +44,7 @@ extension CDMessage {
             // schema) fall back to the safest terminal interpretation.
             role: MessageRole(rawValue: role ?? "") ?? .assistant,
             content: content ?? "",
+            attachments: [],
             createdAt: createdAt ?? Date(),
             status: MessageStatus(rawValue: status ?? "") ?? .failed,
             errorDescription: errorDescription

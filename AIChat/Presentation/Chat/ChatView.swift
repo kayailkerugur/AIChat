@@ -53,8 +53,11 @@ struct ChatView: View {
 
             ComposerView(
                 draft: Bindable(viewModel).draft,
+                attachments: viewModel.pendingAttachments,
                 isStreaming: viewModel.isStreaming,
                 canSend: viewModel.canSend,
+                onAddAttachment: { viewModel.addAttachment(from: $0) },
+                onRemoveAttachment: { viewModel.removePendingAttachment(id: $0) },
                 onSend: { viewModel.sendDraft() },
                 onStop: { viewModel.stopStreaming() }
             )

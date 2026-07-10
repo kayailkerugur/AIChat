@@ -6,40 +6,74 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ComposerView: View {
 
     @Binding var draft: String
+    let attachments: [ChatAttachment]
     let isStreaming: Bool
     let canSend: Bool
+    let onAddAttachment: (URL) -> Void
+    let onRemoveAttachment: (UUID) -> Void
     let onSend: () -> Void
     let onStop: () -> Void
 
     @FocusState private var isFocused: Bool
     @State private var editorHeight: CGFloat = 34
+    @State private var isShowingFileImporter = false
 
     private let minEditorHeight: CGFloat = 34
     private let maxEditorHeight: CGFloat = 180
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            editor
-
-            Button {
-                isStreaming ? onStop() : onSend()
-            } label: {
-                Image(systemName: isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(isStreaming || canSend ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+        VStack(alignment: .leading, spacing: 8) {
+            if !attachments.isEmpty {
+                attachmentChips
             }
-            .buttonStyle(.plain)
-            .disabled(!isStreaming && !canSend)
-            .keyboardShortcut(isStreaming ? .cancelAction : .defaultAction)
-            .accessibilityLabel(isStreaming ? "Yanıtı durdur" : "Mesajı gönder")
-            .padding(.bottom, 4)
+
+            HStack(alignment: .bottom, spacing: 8) {
+                Button {
+                    isShowingFileImporter = true
+                } label: {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 18))
+                }
+                .buttonStyle(.borderless)
+                .disabled(isStreaming)
+                .accessibilityLabel("Dosya ekle")
+                .padding(.bottom, 8)
+
+                editor
+
+                Button {
+                    isStreaming ? onStop() : onSend()
+                } label: {
+                    Image(systemName: isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(isStreaming || canSend ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                }
+                .buttonStyle(.plain)
+                .disabled(!isStreaming && !canSend)
+                .keyboardShortcut(isStreaming ? .cancelAction : .defaultAction)
+                .accessibilityLabel(isStreaming ? "Yanıtı durdur" : "Mesajı gönder")
+                .padding(.bottom, 4)
+            }
         }
         .padding(12)
         .onAppear { isFocused = true }
+        .fileImporter(
+            isPresented: $isShowingFileImporter,
+            allowedContentTypes: AttachmentLoader.allowedContentTypes,
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                urls.forEach(onAddAttachment)
+            case .failure:
+                break
+            }
+        }
     }
 
     // MARK: - Growing editor
@@ -83,6 +117,32 @@ struct ComposerView: View {
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
     }
 
+    private var attachmentChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(attachments) { attachment in
+                    HStack(spacing: 6) {
+                        Image(systemName: attachment.kind == .image ? "photo" : "doc.text")
+                        Text(attachment.fileName)
+                            .lineLimit(1)
+                        Button {
+                            onRemoveAttachment(attachment.id)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Eki kaldır")
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.quaternary.opacity(0.6), in: Capsule())
+                }
+            }
+        }
+    }
+
     /// Hidden mirror of the draft. Lives in .background so it takes no
     /// part in layout; fixedSize lets it report the text's NATURAL
     /// height (even beyond the editor's clamped frame), which flows up
@@ -116,8 +176,11 @@ private struct EditorHeightPreferenceKey: PreferenceKey {
 #Preview("Idle (single line)") {
     ComposerView(
         draft: .constant(""),
+        attachments: [],
         isStreaming: false,
         canSend: false,
+        onAddAttachment: { _ in },
+        onRemoveAttachment: { _ in },
         onSend: {},
         onStop: {}
     )
@@ -127,8 +190,11 @@ private struct EditorHeightPreferenceKey: PreferenceKey {
 #Preview("Few lines (grows)") {
     ComposerView(
         draft: .constant("Birinci satır\nİkinci satır\nÜçüncü satır"),
+        attachments: [],
         isStreaming: false,
         canSend: true,
+        onAddAttachment: { _ in },
+        onRemoveAttachment: { _ in },
         onSend: {},
         onStop: {}
     )
@@ -141,8 +207,11 @@ private struct EditorHeightPreferenceKey: PreferenceKey {
             (1...40).map { "Yapıştırılan uzun metnin \($0). satırı" }
                 .joined(separator: "\n")
         ),
+        attachments: [],
         isStreaming: false,
         canSend: true,
+        onAddAttachment: { _ in },
+        onRemoveAttachment: { _ in },
         onSend: {},
         onStop: {}
     )

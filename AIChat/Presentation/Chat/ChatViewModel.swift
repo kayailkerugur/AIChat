@@ -34,9 +34,11 @@ final class ChatViewModel {
 
     /// Composer text. Bindable from the view.
     var draft: String = ""
+    var pendingAttachments: [ChatAttachment] = []
 
     var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isStreaming
+        (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty)
+            && !isStreaming
     }
 
     var canRegenerate: Bool {
@@ -89,10 +91,16 @@ final class ChatViewModel {
 
     func sendDraft() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isStreaming else { return }
+        let attachments = pendingAttachments
+        guard (!text.isEmpty || !attachments.isEmpty), !isStreaming else { return }
 
         draft = ""
-        let userMessage = ChatMessage(role: .user, content: text)
+        pendingAttachments = []
+        let userMessage = ChatMessage(
+            role: .user,
+            content: text,
+            attachments: attachments
+        )
         messages.append(userMessage)
 
         Task {
@@ -109,6 +117,20 @@ final class ChatViewModel {
         }
 
         startStreaming()
+    }
+
+    func addAttachment(from url: URL) {
+        do {
+            let attachment = try AttachmentLoader.load(from: url)
+            pendingAttachments.append(attachment)
+        } catch {
+            logger.error("attachment load failed: \(error.localizedDescription)")
+            errorMessage = "Dosya eklenemedi."
+        }
+    }
+
+    func removePendingAttachment(id: UUID) {
+        pendingAttachments.removeAll { $0.id == id }
     }
 
     func stopStreaming() {
