@@ -38,7 +38,7 @@ final class GenericAIProvider: AIProvider {
         try applyAuthorization(to: &request)
 
         let (data, response) = try await urlSession.data(for: request)
-        try validate(response)
+        try validate(response, body: data)
 
         do {
             let payload = try JSONDecoder().decode(ModelsResponse.self, from: data)
@@ -61,7 +61,7 @@ final class GenericAIProvider: AIProvider {
                 do {
                     let urlRequest = try self.makeURLRequest(for: request)
                     let (bytes, response) = try await self.urlSession.bytes(for: urlRequest)
-                    try self.validate(response)
+                    try self.validate(response, body: nil)
 
                     var parser = SSEEventParser()
                     var lineBuffer: [UInt8] = []
@@ -145,7 +145,7 @@ final class GenericAIProvider: AIProvider {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     }
 
-    private func validate(_ response: URLResponse) throws {
+    private func validate(_ response: URLResponse, body: Data?) throws {
         guard let http = response as? HTTPURLResponse else {
             throw AIError.malformedResponse
         }
@@ -154,18 +154,28 @@ final class GenericAIProvider: AIProvider {
         case 200:
             return
         case 400, 401, 403:
+            let error = providerError(from: body)
             logger.error("Generic provider auth/request rejected: HTTP \(http.statusCode)")
-            throw AIError.unauthorized
+            if error?.isQuotaLike == true {
+                throw AIError.quotaExceeded
+            }
+            throw error?.isModelLike == true ? AIError.modelUnavailable : AIError.unauthorized
         case 404:
             logger.error("Generic provider model or endpoint not found: HTTP 404")
             throw AIError.modelUnavailable
         case 429:
+            let error = providerError(from: body)
             logger.notice("Generic provider rate limited: HTTP 429")
-            throw AIError.rateLimited
+            throw error?.isQuotaLike == true ? AIError.quotaExceeded : AIError.rateLimited
         default:
             logger.error("Generic provider unexpected status: HTTP \(http.statusCode)")
             throw AIError.unknown(debugDescription: "HTTP \(http.statusCode)")
         }
+    }
+
+    private func providerError(from body: Data?) -> ProviderErrorPayload? {
+        guard let body else { return nil }
+        return try? JSONDecoder().decode(ProviderErrorPayload.self, from: body)
     }
 
     // MARK: - Chunk handling
@@ -265,4 +275,43 @@ private struct ModelsResponse: Decodable {
     }
 
     let data: [Model]
+}
+
+private struct ProviderErrorPayload: Decodable {
+
+    struct ErrorDetails: Decodable {
+        let message: String?
+        let type: String?
+        let code: String?
+        let status: String?
+    }
+
+    let error: ErrorDetails?
+
+    private var searchableText: String {
+        [
+            error?.message,
+            error?.type,
+            error?.code,
+            error?.status,
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+        .lowercased()
+    }
+
+    var isQuotaLike: Bool {
+        let text = searchableText
+        return text.contains("quota")
+            || text.contains("billing")
+            || text.contains("credit")
+            || text.contains("insufficient")
+            || text.contains("resource_exhausted")
+    }
+
+    var isModelLike: Bool {
+        let text = searchableText
+        return text.contains("model")
+            && (text.contains("not found") || text.contains("unavailable"))
+    }
 }

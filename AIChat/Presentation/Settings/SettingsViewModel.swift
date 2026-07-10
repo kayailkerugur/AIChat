@@ -26,6 +26,7 @@ final class SettingsViewModel {
     var apiKeyDraft = ""
 
     private(set) var hasStoredAPIKey = false
+    private(set) var isRefreshingModels = false
     private(set) var infoMessage: String?
     private(set) var errorMessage: String?
 
@@ -43,10 +44,14 @@ final class SettingsViewModel {
         return providerConfigs.first { $0.id == selectedProviderID }
     }
 
+    var selectedProviderModelsFetchedText: String? {
+        guard let date = selectedProvider?.modelsFetchedAt else { return nil }
+        return Self.modelsFetchedFormatter.localizedString(for: date, relativeTo: Date())
+    }
+
     var canSaveProvider: Bool {
         !providerNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && URL(string: baseURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)) != nil
-            && !parsedModels.isEmpty
     }
 
     var providerSections: [ProviderSection] {
@@ -77,6 +82,11 @@ final class SettingsViewModel {
 
     private static let modelKey = "settings.defaultModelID"
     private static let providerKey = "settings.defaultProviderID"
+    private static let modelsFetchedFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter
+    }()
 
     init(
         secureStore: SecureStore,
@@ -145,10 +155,9 @@ final class SettingsViewModel {
         let trimmedBaseURL = baseURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let baseURL = URL(string: trimmedBaseURL),
-              !trimmedName.isEmpty,
-              !parsedModels.isEmpty
+              !trimmedName.isEmpty
         else {
-            errorMessage = "Sağlayıcı adı, base URL ve en az bir model gerekli."
+            errorMessage = "Sağlayıcı adı ve geçerli bir base URL gerekli."
             return
         }
 
@@ -173,6 +182,84 @@ final class SettingsViewModel {
 
         infoMessage = "Sağlayıcı kaydedildi."
         errorMessage = nil
+    }
+
+    func refreshSelectedProviderModels() async {
+        guard let selectedProvider else { return }
+
+        let trimmedName = providerNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBaseURL = baseURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let baseURL = URL(string: trimmedBaseURL),
+              !trimmedName.isEmpty
+        else {
+            errorMessage = "Model çekmek için sağlayıcı adı ve geçerli bir base URL gerekli."
+            return
+        }
+
+        isRefreshingModels = true
+        defer { isRefreshingModels = false }
+
+        var refreshedConfig = selectedProvider
+        refreshedConfig.name = trimmedName
+        refreshedConfig.baseURL = baseURL
+        refreshedConfig.requiresAPIKey = requiresAPIKeyDraft
+
+        if requiresAPIKeyDraft {
+            let trimmedKey = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedKey.isEmpty {
+                do {
+                    try secureStore.save(trimmedKey, forKey: refreshedConfig.apiKeyStorageKey)
+                    apiKeyDraft = ""
+                    refreshKeyStatus()
+                } catch {
+                    logger.error("API key save before model refresh failed: \(String(describing: error))")
+                    errorMessage = "API anahtarı kaydedilemedi."
+                    return
+                }
+            }
+        }
+
+        do {
+            let provider = GenericAIProvider(
+                config: refreshedConfig,
+                secureStore: secureStore
+            )
+            let models = try await provider.refreshModels()
+            guard !models.isEmpty else {
+                errorMessage = "Sağlayıcıdan model bulunamadı."
+                return
+            }
+
+            refreshedConfig.models = models.map {
+                ProviderConfig.CachedModel(
+                    id: $0.id,
+                    displayName: $0.displayName
+                )
+            }
+            refreshedConfig.modelsFetchedAt = Date()
+
+            providerConfigStore.save(refreshedConfig)
+            selectedProviderID = refreshedConfig.id
+            modelsDraft = refreshedConfig.models.map(\.id).joined(separator: "\n")
+
+            if !models.contains(where: {
+                Self.tag(providerID: $0.providerID, modelID: $0.id) == selectedModelTag
+            }), let firstModel = models.first {
+                selectedModelTag = Self.tag(
+                    providerID: firstModel.providerID,
+                    modelID: firstModel.id
+                )
+            }
+
+            infoMessage = "\(models.count) model yüklendi."
+            errorMessage = nil
+        } catch let error as AIError {
+            errorMessage = error.errorDescription ?? "Modeller çekilemedi."
+        } catch {
+            logger.error("Model refresh failed: \(String(describing: error))")
+            errorMessage = "Modeller çekilemedi."
+        }
     }
 
     func deleteSelectedProvider() {

@@ -7,9 +7,8 @@
 //  Composition root. This is the ONLY place in the app where concrete
 //  implementations are instantiated.
 //
-//  UPDATED (multi-provider step): a provider REGISTRY replaces the
-//  single provider. The running app registers Gemini (default) and
-//  Mock — adding a future provider is one line in makeDefault().
+//  The running app builds providers from user-managed ProviderConfig
+//  records. Mock remains available for previews and tests.
 //
 
 import Foundation

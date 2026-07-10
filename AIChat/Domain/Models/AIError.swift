@@ -20,6 +20,8 @@ enum AIError: Error, Equatable {
     case unauthorized
     /// Provider-side rate limit (429). UI may suggest retrying later.
     case rateLimited
+    /// Provider quota/billing is exhausted or unavailable.
+    case quotaExceeded
     /// Requested model is unknown or not available to this account.
     case modelUnavailable
     /// The stream ended unexpectedly or a chunk could not be parsed.
@@ -39,6 +41,8 @@ extension AIError: LocalizedError {
             return "AI servisine erişim doğrulanamadı. Ayarlardan API yapılandırmanızı kontrol edin."
         case .rateLimited:
             return "Çok fazla istek gönderildi. Lütfen kısa bir süre sonra tekrar deneyin."
+        case .quotaExceeded:
+            return "AI servisi kotası veya API kredisi yetersiz. Sağlayıcı hesabınızın kullanım ve faturalandırma ayarlarını kontrol edin."
         case .modelUnavailable:
             return "Seçilen model şu anda kullanılamıyor. Ayarlardan farklı bir model seçin."
         case .malformedResponse:

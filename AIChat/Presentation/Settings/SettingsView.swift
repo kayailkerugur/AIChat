@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
 
     @State private var viewModel: SettingsViewModel
+    @State private var isConfirmingProviderDelete = false
     let session: AuthSession
 
     init(viewModel: SettingsViewModel, session: AuthSession) {
@@ -109,7 +110,7 @@ struct SettingsView: View {
                         .disabled(!viewModel.canSaveProvider)
 
                         Button("Sil", role: .destructive) {
-                            viewModel.deleteSelectedProvider()
+                            isConfirmingProviderDelete = true
                         }
 
                         Spacer()
@@ -119,9 +120,40 @@ struct SettingsView: View {
 
             if viewModel.selectedProvider != nil {
                 Section("Modeller") {
+                    if let fetchedText = viewModel.selectedProviderModelsFetchedText {
+                        LabeledContent("Son çekme", value: fetchedText)
+                    }
+
                     TextEditor(text: Bindable(viewModel).modelsDraft)
                         .font(.system(.body, design: .monospaced))
                         .frame(minHeight: 120)
+
+                    HStack {
+                        Button {
+                            Task { await viewModel.refreshSelectedProviderModels() }
+                        } label: {
+                            Label("Modelleri Çek", systemImage: "arrow.clockwise")
+                        }
+                        .disabled(!viewModel.canSaveProvider || viewModel.isRefreshingModels)
+
+                        if viewModel.isRefreshingModels {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+
+                        Spacer()
+                    }
+
+                    if viewModel.modelsDraft
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty {
+                        Label(
+                            "Her satıra bir model yazın veya sağlayıcı destekliyorsa modelleri çekin.",
+                            systemImage: "info.circle"
+                        )
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("API Anahtarı") {
@@ -176,6 +208,16 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
+        .confirmationDialog(
+            "Sağlayıcı silinsin mi?",
+            isPresented: $isConfirmingProviderDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Sil", role: .destructive) {
+                viewModel.deleteSelectedProvider()
+            }
+            Button("Vazgeç", role: .cancel) {}
+        }
     }
 
     private var feedbackArea: some View {

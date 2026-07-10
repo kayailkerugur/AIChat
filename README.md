@@ -5,18 +5,19 @@ SwiftUI ile geliştirilmiş, OAuth 2.0 (PKCE) girişli, streaming yanıtlı ve C
 ## Özellikler
 
 - Google hesabıyla OAuth 2.0 Authorization Code + PKCE girişi (`ASWebAuthenticationSession`)
-- Gemini ile gerçek zamanlı streaming yanıtlar (SSE); devam eden yanıtı durdurma ve yeniden üretme
+- OpenAI-compatible sağlayıcılarla gerçek zamanlı streaming yanıtlar; devam eden yanıtı durdurma ve yeniden üretme
 - Çoklu konuşma: sidebar, arama (başlık + mesaj içeriği), yeniden adlandırma, cascade silme
 - Markdown ve kod bloğu render'ı (yatay kaydırma + kopyalama)
 - Core Data kalıcılığı — konuşmalar uygulama yeniden açıldığında geri yüklenir
-- Değiştirilebilir AI katmanı: Gemini ve Mock sağlayıcı bir registry arkasında, Settings'ten seçilebilir
+- Kullanıcı tarafından yönetilen AI sağlayıcıları: Gemini, OpenAI, Ollama, LM Studio veya özel OpenAI-compatible endpoint
 - Token ve API anahtarları yalnızca Keychain'de; oturum yenileme ve güvenli logout
 
 ## Gereksinimler
 
 - macOS 14 (Sonoma) veya üzeri
 - Xcode 15 veya üzeri
-- Bir Google hesabı (OAuth girişi ve Gemini API anahtarı için)
+- Bir Google hesabı (OAuth girişi için)
+- En az bir AI sağlayıcı: Gemini/OpenAI API anahtarı veya yerel Ollama/LM Studio endpoint'i
 
 ## Kurulum
 
@@ -31,7 +32,7 @@ open AIChat.xcodeproj
 
 Proje entitlements dosyasında **Outgoing Connections (Client)** izni açık gelir (`com.apple.security.network.client`). Temiz bir kopyada bu izin kapalıysa: Target → Signing & Capabilities → App Sandbox → Network → **Outgoing Connections (Client)** kutusunu işaretleyin.
 
-> Bu izin olmadan tüm ağ istekleri DNS aşamasında `-1003 (hostname could not be found)` hatasıyla düşer — hata mesajı yanıltıcıdır, sorun DNS değil sandbox iznidir. Hem Gemini istekleri hem `ASWebAuthenticationSession` bu izne muhtaçtır.
+> Bu izin olmadan tüm ağ istekleri DNS aşamasında `-1003 (hostname could not be found)` hatasıyla düşer — hata mesajı yanıltıcıdır, sorun DNS değil sandbox iznidir. Hem AI sağlayıcı istekleri hem `ASWebAuthenticationSession` bu izne muhtaçtır.
 
 ### 3. Google OAuth yapılandırması (zorunlu)
 
@@ -65,15 +66,26 @@ Google, iOS/macOS client'larında geri dönüş adresi olarak **reversed client 
 
 Kod tarafında redirect URI, `AppEnvironment` içinde client ID'den **otomatik türetilir** — elle girilmez, böylece iki değer birbirinden kopamaz.
 
-### 4. Gemini API anahtarı
+### 4. AI sağlayıcı ekleme
 
-Anahtar **kod içinde değil, uygulama içinde** yapılandırılır:
+AI sağlayıcılar koddan değil, uygulama içindeki **Ayarlar** ekranından yönetilir. Her sağlayıcı için ad, base URL, API key gereksinimi ve model listesi kaydedilir. API anahtarları kaynak kodda veya UserDefaults'ta tutulmaz; her sağlayıcıya özel Keychain hesabına yazılır.
 
-1. [aistudio.google.com/apikey](https://aistudio.google.com/apikey) adresinden ücretsiz bir API anahtarı oluşturun.
-2. Uygulamayı çalıştırın, giriş yapın, Ayarlar'ı açın.
-3. Anahtarı ilgili alana yapıştırıp **Kaydet**'e basın — anahtar Keychain'e yazılır ve bir daha ekranda gösterilmez ("Kayıtlı (Keychain)" durumu görünür).
+1. Uygulamayı çalıştırın, giriş yapın ve **Ayarlar**'ı açın.
+2. Sol alttan **Ekle** ile yeni sağlayıcı oluşturun.
+3. Sağlayıcı adı, base URL ve gerekirse API anahtarını girin.
+4. **Modelleri Çek** ile `GET {baseURL}/models` çağrısından model listesini doldurun veya modelleri satır satır elle yazın.
+5. **Varsayılan Model** bölümünden yeni sohbetlerde kullanılacak modeli seçin.
 
-Anahtar girilmeden mesaj gönderilirse uygulama sizi Ayarlar'a yönlendiren bir hata gösterir. Anahtarsız denemek için Ayarlar'dan **Mock (Test)** modellerinden biri seçilebilir — mock sağlayıcı ağ olmadan sahte streaming yanıtlar üretir.
+Örnek sağlayıcı ayarları:
+
+| Sağlayıcı | Base URL | API anahtarı | Örnek modeller |
+|---|---|---|---|
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | Gerekli | `gemini-2.5-flash-lite`, `gemini-2.5-flash` |
+| OpenAI | `https://api.openai.com/v1` | Gerekli | `gpt-4o-mini`, `gpt-4o` |
+| Ollama | `http://localhost:11434/v1` | Gerekmez | `llama3.2`, `llama3` |
+| LM Studio | `http://localhost:1234/v1` | Gerekmez | LM Studio'da yüklediğiniz model id'si |
+
+Not: ChatGPT Plus aboneliği OpenAI API kredisi yerine geçmez; OpenAI API için platform hesabında kredi/billing gerekir. Yerel ve ücretsiz deneme için Ollama + `llama3.2` en pratik seçenektir.
 
 ## Çalıştırma
 
@@ -95,11 +107,11 @@ Anahtar girilmeden mesaj gönderilirse uygulama sizi Ayarlar'a yönlendiren bir 
 
 ## Mimari
 
-Dört katman, tek yönlü bağımlılık: **Presentation → Domain ← Data / Infrastructure**. View katmanı `URLSession`, Keychain veya `NSManagedObjectContext`'e asla doğrudan dokunmaz; tüm somut tipler yalnızca `AppDependencies` (composition root) içinde oluşturulur. Ayrıntılar, karar gerekçeleri ve ekran akış şeması için: [`docs/teknik-tasarim-notu.md`](docs/teknik-tasarim-notu.md). OAuth akışının adım adım diyagramı: [`docs/oauth-akis-diyagrami.md`](docs/oauth-akis-diyagrami.md).
+Dört katman, tek yönlü bağımlılık: **Presentation → Domain ← Data / Infrastructure**. View katmanı `URLSession`, Keychain veya `NSManagedObjectContext`'e asla doğrudan dokunmaz; tüm somut tipler yalnızca `AppDependencies` (composition root) içinde oluşturulur. AI katmanında production akış, `ProviderConfigStore` kayıtlarından `GenericAIProvider` örnekleri üretir; böylece yeni OpenAI-compatible sağlayıcı eklemek için kod değişikliği gerekmez.
 
 ## Bilinen eksikler ve sonraki geliştirmeler
 
 - Kod bloklarında syntax highlighting yok (bilinçli kapsam sınırı)
-- Ayarlar'daki API anahtarı bölümü Gemini'ye özel; üçüncü bir gerçek sağlayıcıda sağlayıcı başına alan gerekir
 - Token kullanım bilgisi (`usage` event'i) üretiliyor ancak arayüzde gösterilmiyor
 - Sidebar yenilemesi callback tabanlı; store-driven güncellemeye taşınabilir
+- Resim ve doküman ekleri henüz desteklenmiyor

@@ -8,11 +8,9 @@
 //  multi-provider-ready: Conversation already stores providerID, the
 //  registry resolves it back to a concrete provider at runtime.
 //
-//  Adding a future provider (OpenAI, Anthropic, local model…) is:
-//    1. implement AIProvider in a new file under Data/Providers,
-//    2. add its API key to SecureStoreKey + a Settings field if needed,
-//    3. append ONE line to the registry in AppDependencies.
-//  Nothing above the protocol boundary changes.
+//  Production providers are created from user-managed ProviderConfig
+//  records, so adding a new OpenAI-compatible endpoint happens in
+//  Settings rather than in source code.
 //
 
 import Foundation

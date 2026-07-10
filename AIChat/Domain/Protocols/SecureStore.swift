@@ -6,8 +6,8 @@
 //
 //  Abstraction over secure key-value storage. The real implementation
 //  is Keychain-backed; tests and previews use an in-memory fake.
-//  Every sensitive value in the app (Gemini API key today, OAuth
-//  access/refresh tokens in the next phase) goes through this and
+//  Every sensitive value in the app (provider API keys, OAuth
+//  access/refresh tokens) goes through this and
 //  ONLY this — never UserDefaults, Core Data, plist or logs (spec §6.2).
 //
 
@@ -16,7 +16,6 @@ import Foundation
 /// Well-known, compile-time keys. Raw values are the Keychain account
 /// names — stable strings, do not rename casually.
 enum SecureStoreKey: String, CaseIterable {
-    case geminiAPIKey = "ai.gemini.api-key" // legacy; retires with GeminiProvider
     case oauthAccessToken = "auth.google.access-token"
     case oauthRefreshToken = "auth.google.refresh-token"
     /// Access token expiry as a unix timestamp string — stored alongside

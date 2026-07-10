@@ -17,27 +17,6 @@ import Foundation
 
 struct AppEnvironment {
 
-    // MARK: - Gemini
-
-    struct GeminiConfiguration {
-        /// e.g. https://generativelanguage.googleapis.com
-        let baseURL: URL
-        /// API version path component, e.g. "v1beta"
-        let apiVersion: String
-
-        /// Builds the streaming endpoint for a model:
-        /// {base}/{version}/models/{model}:streamGenerateContent?alt=sse
-        func streamURL(forModel modelID: String) -> URL {
-            baseURL
-                .appending(path: apiVersion)
-                .appending(path: "models")
-                .appending(path: "\(modelID):streamGenerateContent")
-                .appending(queryItems: [URLQueryItem(name: "alt", value: "sse")])
-        }
-    }
-
-    let gemini: GeminiConfiguration
-
     // MARK: - Google OAuth
 
     struct GoogleOAuthConfiguration {
@@ -76,10 +55,6 @@ struct AppEnvironment {
     // MARK: - Environments
 
     static let production = AppEnvironment(
-        gemini: GeminiConfiguration(
-            baseURL: URL(string: "https://generativelanguage.googleapis.com")!,
-            apiVersion: "v1beta"
-        ),
         googleOAuth: GoogleOAuthConfiguration(
             clientID: "322950785121-eg4r8f9k787iecdlnt3ike6as4el1flm.apps.googleusercontent.com",
             authorizationEndpoint: URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!,
