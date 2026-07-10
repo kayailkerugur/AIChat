@@ -4,11 +4,6 @@
 //
 //  Created by Ilker Ugur Kaya on 6.07.2026.
 //
-//  UPDATED (multi-provider step): the model picker now spans ALL
-//  registered providers, grouped into sections. Selecting a model
-//  implicitly selects its provider — new conversations carry both
-//  (Conversation.providerID + modelID).
-//
 
 import Foundation
 import Observation
@@ -20,17 +15,47 @@ final class SettingsViewModel {
 
     // MARK: - Observed state
 
-    /// Draft text in the key field — cleared after save, never
-    /// pre-filled from Keychain.
-    var apiKeyDraft: String = ""
+    var selectedProviderID: UUID? {
+        didSet { loadSelectedProviderDrafts() }
+    }
+
+    var providerNameDraft = ""
+    var baseURLDraft = ""
+    var requiresAPIKeyDraft = true
+    var modelsDraft = ""
+    var apiKeyDraft = ""
+
     private(set) var hasStoredAPIKey = false
     private(set) var infoMessage: String?
     private(set) var errorMessage: String?
 
-    /// Default model for NEW conversations (existing ones keep theirs).
-    var selectedModelID: String {
-        didSet {
-            UserDefaults.standard.set(selectedModelID, forKey: Self.modelKey)
+    /// Picker tag for NEW conversations. Format: "{providerID}|{modelID}".
+    var selectedModelTag: String {
+        didSet { persistDefaultModelTag() }
+    }
+
+    var providerConfigs: [ProviderConfig] {
+        providerConfigStore.configs
+    }
+
+    var selectedProvider: ProviderConfig? {
+        guard let selectedProviderID else { return nil }
+        return providerConfigs.first { $0.id == selectedProviderID }
+    }
+
+    var canSaveProvider: Bool {
+        !providerNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && URL(string: baseURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)) != nil
+            && !parsedModels.isEmpty
+    }
+
+    var providerSections: [ProviderSection] {
+        providerConfigs.map { config in
+            ProviderSection(
+                id: config.providerID,
+                name: config.name,
+                models: config.asAIModels
+            )
         }
     }
 
@@ -42,70 +67,147 @@ final class SettingsViewModel {
         let models: [AIModel]
     }
 
-    var providerSections: [ProviderSection] {
-        registry.providers.map { provider in
-            ProviderSection(
-                id: provider.id,
-                name: Self.displayName(forProviderID: provider.id),
-                models: provider.supportedModels
-            )
-        }
-    }
-
     // MARK: - Dependencies
 
     private let secureStore: SecureStore
     private let registry: AIProviderRegistry
+    private let providerConfigStore: ProviderConfigStore
     private let authService: AuthService
     private let logger = AppLogger.auth
 
     private static let modelKey = "settings.defaultModelID"
+    private static let providerKey = "settings.defaultProviderID"
 
     init(
         secureStore: SecureStore,
         registry: AIProviderRegistry,
+        providerConfigStore: ProviderConfigStore,
         authService: AuthService
     ) {
         self.secureStore = secureStore
         self.registry = registry
+        self.providerConfigStore = providerConfigStore
         self.authService = authService
 
-        // Model preference is NOT a secret — UserDefaults is the right
-        // home for it (unlike the API key).
-        self.selectedModelID = Self.preferredModel(in: registry).id
+        let preferred = Self.preferredModel(in: registry)
+        self.selectedModelTag = Self.tag(
+            providerID: preferred.providerID,
+            modelID: preferred.id
+        )
+        self.selectedProviderID = providerConfigStore.configs.first?.id
 
-        refreshKeyStatus()
+        loadSelectedProviderDrafts()
     }
 
-    /// Reads the user's preferred default model across all providers,
-    /// falling back to the first model of the first provider.
+    /// Reads the user's preferred default model across all providers.
     static func preferredModel(in registry: AIProviderRegistry) -> AIModel {
-        if let storedID = UserDefaults.standard.string(forKey: modelKey),
-           let model = registry.allModels.first(where: { $0.id == storedID }) {
+        let storedProviderID = UserDefaults.standard.string(forKey: providerKey)
+        let storedModelID = UserDefaults.standard.string(forKey: modelKey)
+
+        if let storedProviderID,
+           let storedModelID,
+           let model = registry.allModels.first(where: {
+               $0.providerID == storedProviderID && $0.id == storedModelID
+           }) {
             return model
         }
-        // Registry guarantees at least one provider; a provider with an
-        // empty model list would be a programmer error surfaced here.
+
+        if let storedModelID,
+           let model = registry.allModels.first(where: { $0.id == storedModelID }) {
+            return model
+        }
+
         return registry.allModels.first
-            ?? AIModel(id: "", displayName: "—", providerID: "")
+            ?? AIModel(id: "", displayName: "-", providerID: "")
     }
 
-    private static func displayName(forProviderID id: String) -> String {
-        switch id {
-        case "gemini": return "Google Gemini"
-        case "mock":   return "Mock (Test)"
-        default:       return id.capitalized
+    // MARK: - Provider intents
+
+    func addProvider() {
+        let config = ProviderConfig(
+            name: "Yeni Sağlayıcı",
+            baseURL: URL(string: "http://localhost:11434/v1")!,
+            requiresAPIKey: false,
+            models: [.init(id: "llama3")]
+        )
+        providerConfigStore.save(config)
+        selectedProviderID = config.id
+        selectedModelTag = Self.tag(providerID: config.providerID, modelID: "llama3")
+        persistDefaultModelTag()
+        infoMessage = "Sağlayıcı eklendi."
+        errorMessage = nil
+    }
+
+    func saveSelectedProvider() {
+        guard let selectedProvider else { return }
+
+        let trimmedName = providerNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBaseURL = baseURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let baseURL = URL(string: trimmedBaseURL),
+              !trimmedName.isEmpty,
+              !parsedModels.isEmpty
+        else {
+            errorMessage = "Sağlayıcı adı, base URL ve en az bir model gerekli."
+            return
         }
+
+        var updated = selectedProvider
+        updated.name = trimmedName
+        updated.baseURL = baseURL
+        updated.requiresAPIKey = requiresAPIKeyDraft
+        updated.models = parsedModels
+        updated.modelsFetchedAt = Date()
+
+        providerConfigStore.save(updated)
+        selectedProviderID = updated.id
+
+        if !updated.asAIModels.contains(where: {
+            Self.tag(providerID: $0.providerID, modelID: $0.id) == selectedModelTag
+        }), let firstModel = updated.asAIModels.first {
+            selectedModelTag = Self.tag(
+                providerID: firstModel.providerID,
+                modelID: firstModel.id
+            )
+        }
+
+        infoMessage = "Sağlayıcı kaydedildi."
+        errorMessage = nil
+    }
+
+    func deleteSelectedProvider() {
+        guard let selectedProvider else { return }
+
+        do {
+            try secureStore.delete(key: selectedProvider.apiKeyStorageKey)
+        } catch {
+            logger.error("Provider API key delete failed: \(String(describing: error))")
+        }
+
+        providerConfigStore.delete(id: selectedProvider.id)
+        selectedProviderID = providerConfigs.first?.id
+
+        if let firstModel = registry.allModels.first {
+            selectedModelTag = Self.tag(
+                providerID: firstModel.providerID,
+                modelID: firstModel.id
+            )
+        }
+
+        infoMessage = "Sağlayıcı silindi."
+        errorMessage = nil
     }
 
     // MARK: - API key intents
 
     func saveAPIKey() {
+        guard let selectedProvider else { return }
+
         let trimmed = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         do {
-            try secureStore.save(trimmed, for: .geminiAPIKey)
+            try secureStore.save(trimmed, forKey: selectedProvider.apiKeyStorageKey)
             apiKeyDraft = ""
             infoMessage = "API anahtarı güvenli olarak kaydedildi."
             errorMessage = nil
@@ -117,8 +219,10 @@ final class SettingsViewModel {
     }
 
     func deleteAPIKey() {
+        guard let selectedProvider else { return }
+
         do {
-            try secureStore.delete(.geminiAPIKey)
+            try secureStore.delete(key: selectedProvider.apiKeyStorageKey)
             infoMessage = "API anahtarı silindi."
             errorMessage = nil
             refreshKeyStatus()
@@ -141,7 +245,49 @@ final class SettingsViewModel {
 
     // MARK: - Helpers
 
+    private var parsedModels: [ProviderConfig.CachedModel] {
+        modelsDraft
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { ProviderConfig.CachedModel(id: $0) }
+    }
+
+    private func loadSelectedProviderDrafts() {
+        guard let selectedProvider else {
+            providerNameDraft = ""
+            baseURLDraft = ""
+            requiresAPIKeyDraft = true
+            modelsDraft = ""
+            apiKeyDraft = ""
+            hasStoredAPIKey = false
+            return
+        }
+
+        providerNameDraft = selectedProvider.name
+        baseURLDraft = selectedProvider.baseURL.absoluteString
+        requiresAPIKeyDraft = selectedProvider.requiresAPIKey
+        modelsDraft = selectedProvider.models.map(\.id).joined(separator: "\n")
+        apiKeyDraft = ""
+        refreshKeyStatus()
+    }
+
     private func refreshKeyStatus() {
-        hasStoredAPIKey = ((try? secureStore.read(.geminiAPIKey)) ?? nil)?.isEmpty == false
+        guard let selectedProvider else {
+            hasStoredAPIKey = false
+            return
+        }
+        hasStoredAPIKey = ((try? secureStore.read(key: selectedProvider.apiKeyStorageKey)) ?? nil)?.isEmpty == false
+    }
+
+    private func persistDefaultModelTag() {
+        let parts = selectedModelTag.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return }
+        UserDefaults.standard.set(parts[0], forKey: Self.providerKey)
+        UserDefaults.standard.set(parts[1], forKey: Self.modelKey)
+    }
+
+    static func tag(providerID: String, modelID: String) -> String {
+        "\(providerID)|\(modelID)"
     }
 }

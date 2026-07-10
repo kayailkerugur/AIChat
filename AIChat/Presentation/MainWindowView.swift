@@ -50,13 +50,18 @@ struct MainWindowView: View {
                     viewModel: SettingsViewModel(
                         secureStore: dependencies.secureStore,
                         registry: dependencies.aiProviders,
+                        providerConfigStore: dependencies.providerConfigStore,
                         authService: dependencies.authService
                     ),
                     session: session
                 )
             } else if let conversation = sidebarViewModel.selectedConversation {
-                ChatView(viewModel: viewModel(for: conversation))
-                    .id(conversation.id) // fresh view identity per conversation
+                if let viewModel = viewModel(for: conversation) {
+                    ChatView(viewModel: viewModel)
+                        .id(conversation.id) // fresh view identity per conversation
+                } else {
+                    missingProviderView
+                }
             } else {
                 noSelectionView
             }
@@ -122,15 +127,30 @@ struct MainWindowView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func viewModel(for conversation: Conversation) -> ChatViewModel {
+    private var missingProviderView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text("Bu sohbetin sağlayıcısı bulunamadı")
+                .foregroundStyle(.secondary)
+            Button("Ayarları Aç") {
+                isShowingSettings = true
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func viewModel(for conversation: Conversation) -> ChatViewModel? {
         if let cached = chatViewModels.store[conversation.id] {
             return cached
         }
         // Resolve the provider this conversation was created with —
         // the registry's fallback covers conversations whose provider
         // is no longer registered.
-        let provider = dependencies.aiProviders
+        guard let provider = dependencies.aiProviders
             .resolvedProvider(forID: conversation.providerID)
+        else { return nil }
 
         let viewModel = ChatViewModel(
             conversation: conversation,

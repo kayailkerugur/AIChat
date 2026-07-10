@@ -18,34 +18,55 @@
 import Foundation
 
 protocol AIProviderRegistry: AnyObject {
-    /// All registered providers. Order matters: the first one is the
-    /// fallback when a stored providerID can't be resolved.
     var providers: [AIProvider] { get }
+
+    func reload()
+    func provider(withID id: String) -> AIProvider?
 }
 
 extension AIProviderRegistry {
 
-    func provider(withID id: String) -> AIProvider? {
-        providers.first { $0.id == id }
-    }
-
-    /// Resolves a conversation's provider, falling back to the first
-    /// registered one (e.g. chats created before a provider was removed).
-    func resolvedProvider(forID id: String) -> AIProvider {
-        provider(withID: id) ?? providers[0]
-    }
-
     var allModels: [AIModel] {
         providers.flatMap(\.supportedModels)
     }
+
+    func resolvedProvider(forID id: String) -> AIProvider? {
+        provider(withID: id) ?? providers.first
+    }
 }
 
-final class DefaultAIProviderRegistry: AIProviderRegistry {
+@MainActor
+final class ConfigBackedAIProviderRegistry: AIProviderRegistry {
 
-    let providers: [AIProvider]
+    private(set) var providers: [AIProvider] = []
 
-    init(providers: [AIProvider]) {
-        precondition(!providers.isEmpty, "Registry needs at least one provider")
-        self.providers = providers
+    private let configStore: ProviderConfigStore
+    private let secureStore: SecureStore
+
+    init(
+        configStore: ProviderConfigStore,
+        secureStore: SecureStore
+    ) {
+        self.configStore = configStore
+        self.secureStore = secureStore
+
+        reload()
+
+        configStore.onChange = { [weak self] in
+            self?.reload()
+        }
+    }
+
+    func reload() {
+        providers = configStore.configs.map { config in
+            GenericAIProvider(
+                config: config,
+                secureStore: secureStore
+            )
+        }
+    }
+
+    func provider(withID id: String) -> AIProvider? {
+        providers.first { $0.id == id }
     }
 }

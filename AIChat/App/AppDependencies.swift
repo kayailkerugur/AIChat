@@ -23,6 +23,7 @@ final class AppDependencies {
     let conversationRepository: ConversationRepository
     let messageRepository: MessageRepository
     let secureStore: SecureStore
+    let providerConfigStore: ProviderConfigStore
     let environment: AppEnvironment
 
     init(
@@ -31,6 +32,7 @@ final class AppDependencies {
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
         secureStore: SecureStore,
+        providerConfigStore: ProviderConfigStore,
         environment: AppEnvironment
     ) {
         self.authService = authService
@@ -38,6 +40,7 @@ final class AppDependencies {
         self.conversationRepository = conversationRepository
         self.messageRepository = messageRepository
         self.secureStore = secureStore
+        self.providerConfigStore = providerConfigStore
         self.environment = environment
     }
 
@@ -45,7 +48,13 @@ final class AppDependencies {
     static func makeDefault() -> AppDependencies {
         let environment = AppEnvironment.production
         let secureStore = KeychainStore()
+        let providerConfigStore = UserDefaultsProviderConfigStore()
         let chatStore = CoreDataChatRepository(persistence: .shared)
+
+        let aiProviders = ConfigBackedAIProviderRegistry(
+            configStore: providerConfigStore,
+            secureStore: secureStore
+        )
 
         // Launch repair: any message left in a non-terminal state by a
         // crash/force-quit is moved to a safe, explainable state before
@@ -61,24 +70,15 @@ final class AppDependencies {
         }
 
         return AppDependencies(
-            // THE swap the architecture was built for: mock → real OAuth,
-            // one line, nothing above the AuthService protocol changes.
             authService: OAuthService(
                 configuration: environment.googleOAuth,
                 secureStore: secureStore
             ),
-            aiProviders: DefaultAIProviderRegistry(providers: [
-                // First provider = app-wide fallback.
-                GeminiProvider(
-                    configuration: environment.gemini,
-                    secureStore: secureStore
-                ),
-                MockAIProvider(),
-                // Future providers register here — one line each.
-            ]),
+            aiProviders: aiProviders,
             conversationRepository: chatStore,
             messageRepository: chatStore,
             secureStore: secureStore,
+            providerConfigStore: providerConfigStore,
             environment: environment
         )
     }
@@ -88,16 +88,40 @@ final class AppDependencies {
         auth authBehavior: MockAuthService.Behavior = .init(latency: .zero),
         ai aiBehavior: MockAIProvider.Behavior = .init(chunkDelay: .milliseconds(40))
     ) -> AppDependencies {
+        let secureStore = InMemorySecureStore()
+        let providerConfigStore = UserDefaultsProviderConfigStore(
+            defaults: UserDefaults(suiteName: "AIChat.preview.providers")!
+        )
         let chatStore = InMemoryChatRepository()
+
+        let mockProvider = MockAIProvider(behavior: aiBehavior)
+        let aiProviders = StaticAIProviderRegistry(providers: [
+            mockProvider
+        ])
+
         return AppDependencies(
             authService: MockAuthService(behavior: authBehavior),
-            aiProviders: DefaultAIProviderRegistry(providers: [
-                MockAIProvider(behavior: aiBehavior)
-            ]),
+            aiProviders: aiProviders,
             conversationRepository: chatStore,
             messageRepository: chatStore,
-            secureStore: InMemorySecureStore(),
+            secureStore: secureStore,
+            providerConfigStore: providerConfigStore,
             environment: .production
         )
+    }
+}
+
+final class StaticAIProviderRegistry: AIProviderRegistry {
+
+    let providers: [AIProvider]
+
+    init(providers: [AIProvider]) {
+        self.providers = providers
+    }
+
+    func reload() {}
+
+    func provider(withID id: String) -> AIProvider? {
+        providers.first { $0.id == id }
     }
 }

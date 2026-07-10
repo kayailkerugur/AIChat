@@ -31,8 +31,7 @@ final class ProviderConfigStoreTests: XCTestCase {
         ProviderConfig(
             name: name,
             baseURL: URL(string: "https://example.com/v1")!,
-            requiresAPIKey: true,
-            presetID: "custom"
+            requiresAPIKey: true
         )
     }
 

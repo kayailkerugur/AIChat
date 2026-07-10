@@ -71,6 +71,10 @@ final class SidebarViewModel {
 
     func createConversation() async {
         let model = defaultModel()
+        guard !model.providerID.isEmpty, !model.id.isEmpty else {
+            errorMessage = "Yeni sohbet için önce Ayarlar'dan bir sağlayıcı ve model ekleyin."
+            return
+        }
         let conversation = Conversation(
             title: Self.defaultTitle,
             providerID: model.providerID,
