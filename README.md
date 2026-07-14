@@ -10,6 +10,7 @@ SwiftUI ile geliştirilmiş, OAuth 2.0 (PKCE) girişli, streaming yanıtlı ve C
 - Markdown ve kod bloğu render'ı (yatay kaydırma + kopyalama)
 - Görsel ve doküman ekleri: image dosyaları multimodal sağlayıcılara, PDF/text dokümanları çıkarılan metin olarak gönderilir; ekler mesaj geçmişinde kalıcıdır
 - Mesaj içi ek önizleme: görseller küçük kare olarak, PDF/dokümanlar dosya satırı olarak görünür; tıklayınca uygulama içinde önizlenir
+- Bas-konuş sesli görüşme: konuşmanız cihazda (Speech framework) metne çevrilir, aktif sohbetin sağlayıcısına normal bir mesaj gibi gönderilir, yanıt hem sohbette görünür hem cihazda (AVSpeechSynthesizer) sesli okunur; yanıt okunurken sözü kesip yeni bir şey söylenebilir
 - Core Data kalıcılığı — konuşmalar uygulama yeniden açıldığında geri yüklenir
 - Kullanıcı tarafından yönetilen AI sağlayıcıları: Gemini, OpenAI, Ollama, LM Studio veya özel OpenAI-compatible endpoint
 - Token ve API anahtarları yalnızca Keychain'de; oturum yenileme ve güvenli logout
@@ -100,6 +101,14 @@ Composer'daki ataç butonu ile görsel, PDF ve metin tabanlı doküman eklenebil
 Eklerin metadata bilgisi Core Data geçmişine mesajla birlikte kaydedilir; dosya içerikleri ise Application Support altındaki uygulama klasöründe `Attachments` dizinine yazılır. Core Data yalnızca dosyanın göreli yolunu, dosya adını, MIME tipini ve çıkarılan metni tutar. Sohbet yeniden açıldığında ek adları, içerikleri ve önizlemeleri geri yüklenir. Gönderilmiş mesajlarda görseller küçük kare thumbnail olarak, PDF/dokümanlar ise dosya adı satırı olarak gösterilir. Ek üzerine tıklanınca görsel/PDF önizlemesi açılır; context menüden önizleme, kopyalama, dışa aktarma, Finder'da gösterme ve eki silme aksiyonları kullanılabilir.
 
 Yerel LLM sağlayıcılarında (Ollama/LM Studio gibi localhost endpoint'leri) görsel desteği kapalı kabul edilir. Bu yüzden local model seçiliyken görsel ekli mesaj gönderimi engellenir. PDF ve metin tabanlı dokümanlar ise çıkarılan metin üzerinden gönderilebilir.
+
+## Sesli Görüşme
+
+Chat ekranındaki telefon butonu bas-konuş sesli görüşme modalını açar (yeniden boyutlandırılabilir pencere). Mikrofona basılı tutup konuşursunuz; bıraktığınızda kayıt cihazda (Apple `Speech` framework, mümkünse tamamen çevrimdışı) metne çevrilir ve aktif sohbetin kullandığı sağlayıcıya normal bir kullanıcı mesajı olarak gönderilir — yanıt, olağan streaming akışıyla sohbette görünür. Yanıt tamamlanınca cihazda (`AVSpeechSynthesizer`) sesli okunur; okuma sırasında duraklat/devam et yapılabilir, ya da mikrofona tekrar basılı tutularak sözü kesilip yeni bir şey söylenebilir.
+
+Ağa çıkan tek şey gerçek sohbet isteğidir (zaten var olan, çalışan yol); konuşmayı metne çevirme ve yanıtı seslendirme tamamen yerel olduğundan sağlayıcıya özel ses modeli/API anahtarı gerekmez.
+
+Projede ayrıca Gemini Live / OpenAI Realtime WebSocket API'lerine dayanan tam gerçek-zamanlı (full-duplex) bir sesli görüşme denemesi de bulunuyor (`AIChat/Data/Realtime/GeminiLiveVoiceClient.swift`, `OpenAIRealtimeVoiceClient.swift`, `AIChat/Domain/Protocols/VoiceRealtimeClient.swift`, `AIChat/Infrastructure/Audio/RealtimeAudioEngine.swift`) — şu an hiçbir yerden çağrılmıyor, yalnızca ileride bu API'lere erişim sağlanırsa tekrar devreye alınabilmesi için kodda tutuluyor.
 
 ## Testler
 

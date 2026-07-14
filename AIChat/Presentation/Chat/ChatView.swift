@@ -19,6 +19,7 @@ import SwiftUI
 struct ChatView: View {
 
     @State private var viewModel: ChatViewModel
+    @State private var isShowingVoiceCall = false
 
     init(viewModel: ChatViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -63,6 +64,18 @@ struct ChatView: View {
             )
         }
         .animation(.default, value: viewModel.errorMessage)
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    isShowingVoiceCall = true
+                } label: {
+                    Label("Sesli Görüşme", systemImage: "phone.fill")
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingVoiceCall) {
+            VoiceCallView(viewModel: VoiceCallViewModel(chatViewModel: viewModel))
+        }
     }
 
     // MARK: - Pieces
