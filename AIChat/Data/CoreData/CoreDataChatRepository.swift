@@ -91,6 +91,7 @@ final class CoreDataChatRepository: ConversationRepository, MessageRepository {
         try await context.perform {
             guard let entity = try self.fetchConversation(conversationID, in: context)
             else { return }
+            self.deleteAttachmentFiles(in: entity)
             // Messages go with it — Cascade delete rule on the
             // `messages` relationship (spec acceptance criterion 10).
             context.delete(entity)
@@ -125,7 +126,7 @@ final class CoreDataChatRepository: ConversationRepository, MessageRepository {
             let entity = CDMessage(context: context)
             entity.apply(message)
             entity.conversation = conversation
-            self.replaceAttachments(for: entity, with: message.attachments, in: context)
+            try self.replaceAttachments(for: entity, with: message.attachments, in: context)
             try self.save(context, action: "append message")
         }
     }
@@ -136,7 +137,7 @@ final class CoreDataChatRepository: ConversationRepository, MessageRepository {
             guard let entity = try self.fetchMessage(message.id, in: context)
             else { return }
             entity.apply(message)
-            self.replaceAttachments(for: entity, with: message.attachments, in: context)
+            try self.replaceAttachments(for: entity, with: message.attachments, in: context)
             try self.save(context, action: "update message")
         }
     }
@@ -145,6 +146,7 @@ final class CoreDataChatRepository: ConversationRepository, MessageRepository {
         let context = persistence.newBackgroundContext()
         try await context.perform {
             guard let entity = try self.fetchMessage(id, in: context) else { return }
+            self.deleteAttachmentFiles(in: entity)
             context.delete(entity)
             try self.save(context, action: "delete message")
         }
@@ -216,16 +218,53 @@ final class CoreDataChatRepository: ConversationRepository, MessageRepository {
         for message: CDMessage,
         with attachments: [ChatAttachment],
         in context: NSManagedObjectContext
-    ) {
+    ) throws {
+        let newRows = try attachments.enumerated().map { index, attachment in
+            let relativePath = try AttachmentFileStore.write(
+                data: attachment.data,
+                fileName: attachment.fileName,
+                attachmentID: attachment.id,
+                messageID: message.id ?? UUID()
+            )
+            return (
+                index: index,
+                attachment: attachment,
+                relativePath: relativePath
+            )
+        }
+        let newRelativePaths = Set(newRows.map(\.relativePath))
+
         let existing = (message.attachments as? Set<CDAttachment>) ?? []
         for attachment in existing {
+            if let relativePath = attachment.relativePath,
+               !newRelativePaths.contains(relativePath) {
+                AttachmentFileStore.delete(relativePath: relativePath)
+            }
             context.delete(attachment)
         }
 
-        for (index, attachment) in attachments.enumerated() {
+        for (index, attachment, relativePath) in newRows {
             let entity = CDAttachment(context: context)
-            entity.apply(attachment, sortIndex: Int32(index))
+            entity.apply(
+                attachment,
+                sortIndex: Int32(index),
+                relativePath: relativePath
+            )
             entity.message = message
+        }
+    }
+
+    private func deleteAttachmentFiles(in conversation: CDConversation) {
+        let messages = (conversation.messages as? Set<CDMessage>) ?? []
+        for message in messages {
+            deleteAttachmentFiles(in: message)
+        }
+    }
+
+    private func deleteAttachmentFiles(in message: CDMessage) {
+        let attachments = (message.attachments as? Set<CDAttachment>) ?? []
+        for attachment in attachments {
+            AttachmentFileStore.delete(relativePath: attachment.relativePath)
         }
     }
 }

@@ -76,7 +76,13 @@ struct ChatView: View {
                             message: message,
                             onRetry: message.status == .failed
                                 ? { viewModel.regenerateLastResponse() }
-                                : nil
+                                : nil,
+                            onDeleteAttachment: { messageID, attachmentID in
+                                viewModel.deleteAttachment(
+                                    messageID: messageID,
+                                    attachmentID: attachmentID
+                                )
+                            }
                         )
                     }
 

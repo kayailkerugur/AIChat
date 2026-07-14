@@ -73,22 +73,28 @@ extension CDMessage {
 extension CDAttachment {
 
     func toDomain() -> ChatAttachment {
-        ChatAttachment(
+        let attachmentData = relativePath
+            .flatMap { AttachmentFileStore.read(relativePath: $0) }
+            ?? data
+            ?? Data()
+
+        return ChatAttachment(
             id: id ?? UUID(),
             fileName: fileName ?? "Dosya",
             mimeType: mimeType ?? "application/octet-stream",
             kind: ChatAttachmentKind(rawValue: kind ?? "") ?? .document,
-            data: data ?? Data(),
+            data: attachmentData,
             extractedText: extractedText
         )
     }
 
-    func apply(_ attachment: ChatAttachment, sortIndex: Int32) {
+    func apply(_ attachment: ChatAttachment, sortIndex: Int32, relativePath: String?) {
         id = attachment.id
         fileName = attachment.fileName
         mimeType = attachment.mimeType
         kind = attachment.kind.rawValue
-        data = attachment.data
+        data = nil
+        self.relativePath = relativePath
         extractedText = attachment.extractedText
         self.sortIndex = sortIndex
     }

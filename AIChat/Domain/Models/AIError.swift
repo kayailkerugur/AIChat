@@ -40,13 +40,13 @@ extension AIError: LocalizedError {
         case .network:
             return "Bağlantı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin."
         case .unauthorized:
-            return "AI servisine erişim doğrulanamadı. Ayarlardan API yapılandırmanızı kontrol edin."
+            return "API anahtarı geçersiz veya eksik. Ayarlardan sağlayıcı API anahtarını kontrol edin."
         case .rateLimited:
-            return "Çok fazla istek gönderildi. Lütfen kısa bir süre sonra tekrar deneyin."
+            return "Çok fazla istek gönderildi. Kısa bir süre sonra tekrar deneyin."
         case .quotaExceeded:
-            return "AI servisi kotası veya API kredisi yetersiz. Sağlayıcı hesabınızın kullanım ve faturalandırma ayarlarını kontrol edin."
+            return "API kredisi veya kota yetersiz. Sağlayıcı hesabınızın kullanım ve faturalandırma ayarlarını kontrol edin."
         case .modelUnavailable:
-            return "Seçilen model şu anda kullanılamıyor. Ayarlardan farklı bir model seçin."
+            return "Model bulunamadı veya hesabınız için kullanılamıyor. Ayarlardan farklı bir model seçin."
         case .malformedResponse:
             return "Yanıt işlenirken bir sorun oluştu. Lütfen tekrar deneyin."
         case .providerRejected(let message):

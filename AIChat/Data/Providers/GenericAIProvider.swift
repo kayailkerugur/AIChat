@@ -167,6 +167,9 @@ final class GenericAIProvider: AIProvider {
             if error?.isModelLike == true {
                 throw AIError.modelUnavailable
             }
+            if error?.isAuthLike == true {
+                throw AIError.unauthorized
+            }
             if let message = error?.safeUserMessage {
                 throw AIError.providerRejected(message: message)
             }
@@ -179,6 +182,9 @@ final class GenericAIProvider: AIProvider {
             logger.notice("Generic provider rate limited: HTTP 429")
             if error?.isQuotaLike == true {
                 throw AIError.quotaExceeded
+            }
+            if error?.isModelLike == true {
+                throw AIError.modelUnavailable
             }
             if let message = error?.safeUserMessage {
                 throw AIError.providerRejected(message: message)
@@ -429,16 +435,41 @@ private struct ProviderErrorPayload: Decodable {
     var isModelLike: Bool {
         let text = searchableText
         return text.contains("model")
-            && (text.contains("not found") || text.contains("unavailable"))
+            && (text.contains("not found")
+                || text.contains("unavailable")
+                || text.contains("does not exist")
+                || text.contains("not supported")
+                || text.contains("not found for api version"))
+    }
+
+    var isAuthLike: Bool {
+        let text = searchableText
+        return text.contains("api key")
+            || text.contains("apikey")
+            || text.contains("invalid key")
+            || text.contains("invalid_api_key")
+            || text.contains("unauthorized")
+            || text.contains("permission denied")
+            || text.contains("forbidden")
     }
 
     var safeUserMessage: String? {
+        if isQuotaLike {
+            return "API kredisi veya kota yetersiz. Sağlayıcı hesabınızın kullanım ve faturalandırma ayarlarını kontrol edin."
+        }
+        if isModelLike {
+            return "Model bulunamadı veya hesabınız için kullanılamıyor. Ayarlardan farklı bir model seçin."
+        }
+        if isAuthLike {
+            return "API anahtarı geçersiz veya eksik. Ayarlardan sağlayıcı API anahtarını kontrol edin."
+        }
+
         guard let message = error?.message else { return nil }
         let collapsed = message
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\r", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !collapsed.isEmpty else { return nil }
-        return String(collapsed.prefix(180))
+        return String(collapsed.prefix(140))
     }
 }

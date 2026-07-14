@@ -8,7 +8,8 @@ SwiftUI ile geliştirilmiş, OAuth 2.0 (PKCE) girişli, streaming yanıtlı ve C
 - OpenAI-compatible sağlayıcılarla gerçek zamanlı streaming yanıtlar; devam eden yanıtı durdurma ve yeniden üretme
 - Çoklu konuşma: sidebar, arama (başlık + mesaj içeriği), yeniden adlandırma, cascade silme
 - Markdown ve kod bloğu render'ı (yatay kaydırma + kopyalama)
-- Görsel ve doküman ekleri: image dosyaları multimodal sağlayıcılara, PDF/text dokümanları çıkarılan metin olarak gönderilir
+- Görsel ve doküman ekleri: image dosyaları multimodal sağlayıcılara, PDF/text dokümanları çıkarılan metin olarak gönderilir; ekler mesaj geçmişinde kalıcıdır
+- Mesaj içi ek önizleme: görseller küçük kare olarak, PDF/dokümanlar dosya satırı olarak görünür; tıklayınca uygulama içinde önizlenir
 - Core Data kalıcılığı — konuşmalar uygulama yeniden açıldığında geri yüklenir
 - Kullanıcı tarafından yönetilen AI sağlayıcıları: Gemini, OpenAI, Ollama, LM Studio veya özel OpenAI-compatible endpoint
 - Token ve API anahtarları yalnızca Keychain'de; oturum yenileme ve güvenli logout
@@ -96,7 +97,9 @@ Not: ChatGPT Plus aboneliği OpenAI API kredisi yerine geçmez; OpenAI API için
 
 Composer'daki ataç butonu ile görsel, PDF ve metin tabanlı doküman eklenebilir. Görseller, uygulamanın görsel destekli olarak tanıdığı sağlayıcılarda OpenAI-compatible `image_url` content part olarak data URL biçiminde gönderilir. PDF ve text/json/csv dosyaları uygulama içinde metne çevrilir ve istek bağlamına text part olarak eklenir.
 
-Ekler Core Data geçmişine mesajla birlikte kaydedilir. Sohbet yeniden açıldığında ek adları ve içerikleri geri yüklenir. Yerel LLM sağlayıcılarında görsel desteği kapalıysa görsel ekli mesaj gönderimi engellenir.
+Eklerin metadata bilgisi Core Data geçmişine mesajla birlikte kaydedilir; dosya içerikleri ise Application Support altındaki uygulama klasöründe `Attachments` dizinine yazılır. Core Data yalnızca dosyanın göreli yolunu, dosya adını, MIME tipini ve çıkarılan metni tutar. Sohbet yeniden açıldığında ek adları, içerikleri ve önizlemeleri geri yüklenir. Gönderilmiş mesajlarda görseller küçük kare thumbnail olarak, PDF/dokümanlar ise dosya adı satırı olarak gösterilir. Ek üzerine tıklanınca görsel/PDF önizlemesi açılır; context menüden önizleme, kopyalama, dışa aktarma, Finder'da gösterme ve eki silme aksiyonları kullanılabilir.
+
+Yerel LLM sağlayıcılarında (Ollama/LM Studio gibi localhost endpoint'leri) görsel desteği kapalı kabul edilir. Bu yüzden local model seçiliyken görsel ekli mesaj gönderimi engellenir. PDF ve metin tabanlı dokümanlar ise çıkarılan metin üzerinden gönderilebilir.
 
 ## Testler
 
@@ -120,5 +123,6 @@ Dört katman, tek yönlü bağımlılık: **Presentation → Domain ← Data / I
 
 - Kod bloklarında syntax highlighting yok (bilinçli kapsam sınırı)
 - Token kullanım bilgisi (`usage` event'i) üretiliyor ancak arayüzde gösterilmiyor
+- Çok büyük ekler için dosya boyutu/token sınırı uyarısı henüz yok
 - Sidebar yenilemesi callback tabanlı; store-driven güncellemeye taşınabilir
 - Word/Excel gibi zengin dokümanlardan metin çıkarımı henüz desteklenmiyor

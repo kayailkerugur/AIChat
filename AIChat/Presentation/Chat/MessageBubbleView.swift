@@ -6,13 +6,17 @@
 //
 
 import SwiftUI
+import PDFKit
+import AppKit
 
 struct MessageBubbleView: View {
 
     let message: ChatMessage
     var onRetry: (() -> Void)? = nil
+    var onDeleteAttachment: ((UUID, UUID) -> Void)? = nil
 
     @State private var isHovering = false
+    @State private var previewAttachment: ChatAttachment?
 
     private var isUser: Bool { message.role == .user }
 
@@ -34,22 +38,21 @@ struct MessageBubbleView: View {
             Button("Kopyala") { copyToPasteboard(message.content) }
                 .disabled(message.content.isEmpty)
         }
+        .sheet(item: $previewAttachment) { attachment in
+            AttachmentPreviewSheet(attachment: attachment)
+        }
     }
 
     @ViewBuilder
     private var attachmentChips: some View {
         if !message.attachments.isEmpty {
-            HStack(spacing: 6) {
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 8) {
                 ForEach(message.attachments) { attachment in
-                    Label(
-                        attachment.fileName,
-                        systemImage: attachment.kind == .image ? "photo" : "doc.text"
-                    )
-                    .font(.caption)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.quaternary.opacity(0.45), in: Capsule())
+                    AttachmentPreviewTrigger(attachment: attachment) {
+                        previewAttachment = attachment
+                    } onDelete: {
+                        onDeleteAttachment?(message.id, attachment.id)
+                    }
                 }
             }
         }
@@ -124,6 +127,297 @@ struct MessageBubbleView: View {
     private func copyToPasteboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+private struct AttachmentPreviewTrigger: View {
+
+    let attachment: ChatAttachment
+    let onOpen: () -> Void
+    let onDelete: (() -> Void)?
+
+    var body: some View {
+        Button(action: onOpen) {
+            switch attachment.kind {
+            case .image:
+                imageThumbnail
+            case .document:
+                documentRow
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Önizle", action: onOpen)
+            Button("Kopyala") {
+                copyAttachment()
+            }
+            Button("Dışa Aktar...") {
+                exportAttachment()
+            }
+            Button("Finder'da Göster") {
+                revealInFinder()
+            }
+            if let onDelete {
+                Divider()
+                Button("Eki Sil", role: .destructive, action: onDelete)
+            }
+        }
+        .accessibilityLabel("\(attachment.fileName) önizle")
+    }
+
+    private var imageThumbnail: some View {
+        Group {
+            if let image = NSImage(data: attachment.data) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "photo")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.quaternary.opacity(0.45))
+            }
+        }
+        .frame(width: 84, height: 84)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.quaternary, lineWidth: 1)
+        }
+        .overlay(alignment: .bottomLeading) {
+            Text(attachment.fileName)
+                .font(.caption2)
+                .lineLimit(1)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial)
+        }
+        .frame(width: 84, height: 84)
+    }
+
+    private var documentRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: attachment.isPDF ? "doc.richtext" : "doc.text")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(attachment.fileName)
+                    .font(.callout)
+                    .lineLimit(1)
+                Text(attachment.isPDF ? "PDF" : attachment.mimeType)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: "eye")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(width: 280)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.quaternary, lineWidth: 1)
+        }
+    }
+
+    private func copyAttachment() {
+        NSPasteboard.general.clearContents()
+
+        if attachment.kind == .image, let image = NSImage(data: attachment.data) {
+            NSPasteboard.general.writeObjects([image])
+            return
+        }
+
+        do {
+            let url = try temporaryFileURL()
+            NSPasteboard.general.writeObjects([url as NSURL])
+        } catch {
+            NSSound.beep()
+        }
+    }
+
+    private func exportAttachment() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = attachment.fileName
+        panel.canCreateDirectories = true
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try attachment.data.write(to: url, options: .atomic)
+            } catch {
+                NSSound.beep()
+            }
+        }
+    }
+
+    private func revealInFinder() {
+        do {
+            let url = try temporaryFileURL()
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            NSSound.beep()
+        }
+    }
+
+    private func temporaryFileURL() throws -> URL {
+        let directory = FileManager.default
+            .temporaryDirectory
+            .appendingPathComponent("AIChatAttachments", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+
+        let url = directory.appendingPathComponent(attachment.safeFileName)
+        try attachment.data.write(to: url, options: .atomic)
+        return url
+    }
+}
+
+private struct AttachmentPreviewSheet: View {
+
+    let attachment: ChatAttachment
+    @Environment(\.dismiss) private var dismiss
+
+    private var windowSize: CGSize {
+        if attachment.kind == .image, let image = NSImage(data: attachment.data) {
+            return Self.previewWindowSize(for: image.size)
+        }
+
+        if attachment.isPDF,
+           let document = PDFDocument(data: attachment.data),
+           let page = document.page(at: 0) {
+            return Self.previewWindowSize(for: page.bounds(for: .mediaBox).size)
+        }
+
+        return Self.previewWindowSize(for: CGSize(width: 900, height: 620))
+    }
+
+    private var contentSize: CGSize {
+        CGSize(width: windowSize.width, height: max(windowSize.height - 58, 360))
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(attachment.fileName)
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer()
+                Button("Kapat") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding()
+
+            Divider()
+
+            previewContent
+                .frame(width: contentSize.width, height: contentSize.height)
+        }
+        .frame(width: windowSize.width, height: windowSize.height)
+    }
+
+    @ViewBuilder
+    private var previewContent: some View {
+        if attachment.kind == .image, let image = NSImage(data: attachment.data) {
+            ZStack {
+                Color.clear
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .padding()
+                    .frame(width: contentSize.width, height: contentSize.height)
+            }
+        } else if attachment.isPDF, let document = PDFDocument(data: attachment.data) {
+            PDFPreview(document: document)
+        } else if let text = attachment.extractedText, !text.isEmpty {
+            ScrollView {
+                Text(text)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+            }
+        } else {
+            ContentUnavailableView(
+                "Önizleme yok",
+                systemImage: "doc.questionmark",
+                description: Text("Bu dosya türü için uygulama içi önizleme desteklenmiyor.")
+            )
+        }
+    }
+
+    private static func previewWindowSize(for contentSize: CGSize) -> CGSize {
+        let screenSize = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1440, height: 900)
+        let maxWidth = min(screenSize.width * 0.86, 1180)
+        let maxHeight = min(screenSize.height * 0.86, 920)
+        let minWidth: CGFloat = 560
+        let minHeight: CGFloat = 420
+        let headerHeight: CGFloat = 58
+        let horizontalPadding: CGFloat = 32
+        let verticalPadding: CGFloat = 32
+
+        let safeContentSize = CGSize(
+            width: max(contentSize.width, 1),
+            height: max(contentSize.height, 1)
+        )
+        let availableWidth = maxWidth - horizontalPadding
+        let availableHeight = maxHeight - headerHeight - verticalPadding
+        let scale = min(availableWidth / safeContentSize.width, availableHeight / safeContentSize.height)
+        let previewWidth = safeContentSize.width * scale + horizontalPadding
+        let previewHeight = safeContentSize.height * scale + headerHeight + verticalPadding
+
+        return CGSize(
+            width: min(max(previewWidth, minWidth), maxWidth),
+            height: min(max(previewHeight, minHeight), maxHeight)
+        )
+    }
+}
+
+private struct PDFPreview: NSViewRepresentable {
+
+    let document: PDFDocument
+
+    func makeNSView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.displayDirection = .vertical
+        view.document = document
+        return view
+    }
+
+    func updateNSView(_ view: PDFView, context: Context) {
+        view.document = document
+    }
+}
+
+private extension ChatAttachment {
+    var isPDF: Bool {
+        mimeType == "application/pdf" || fileName.lowercased().hasSuffix(".pdf")
+    }
+
+    var safeFileName: String {
+        let invalidCharacters = CharacterSet(charactersIn: "/:")
+            .union(.newlines)
+            .union(.controlCharacters)
+        let components = fileName.components(separatedBy: invalidCharacters)
+        let sanitized = components
+            .joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return sanitized.isEmpty ? "attachment" : sanitized
     }
 }
 

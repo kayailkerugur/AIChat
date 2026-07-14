@@ -137,6 +137,29 @@ final class ChatViewModel {
         pendingAttachments.removeAll { $0.id == id }
     }
 
+    func deleteAttachment(messageID: UUID, attachmentID: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return }
+
+        let originalMessage = messages[index]
+        messages[index].attachments.removeAll { $0.id == attachmentID }
+        let updatedMessage = messages[index]
+
+        Task {
+            do {
+                try await messageRepository.update(
+                    updatedMessage,
+                    inConversation: conversation.id
+                )
+            } catch {
+                logger.error("delete attachment failed: \(error.localizedDescription)")
+                if let currentIndex = messages.firstIndex(where: { $0.id == messageID }) {
+                    messages[currentIndex] = originalMessage
+                }
+                errorMessage = "Ek silinemedi."
+            }
+        }
+    }
+
     func stopStreaming() {
         aiProvider.cancelCurrentRequest()
         streamTask?.cancel()
