@@ -44,7 +44,7 @@ extension CDMessage {
             // schema) fall back to the safest terminal interpretation.
             role: MessageRole(rawValue: role ?? "") ?? .assistant,
             content: content ?? "",
-            attachments: [],
+            attachments: mappedAttachments,
             createdAt: createdAt ?? Date(),
             status: MessageStatus(rawValue: status ?? "") ?? .failed,
             errorDescription: errorDescription
@@ -58,5 +58,38 @@ extension CDMessage {
         createdAt = message.createdAt
         status = message.status.rawValue
         errorDescription = message.errorDescription
+    }
+
+    var mappedAttachments: [ChatAttachment] {
+        let rows = (attachments as? Set<CDAttachment>) ?? []
+        return rows
+            .sorted { $0.sortIndex < $1.sortIndex }
+            .map { $0.toDomain() }
+    }
+}
+
+// MARK: - CDAttachment
+
+extension CDAttachment {
+
+    func toDomain() -> ChatAttachment {
+        ChatAttachment(
+            id: id ?? UUID(),
+            fileName: fileName ?? "Dosya",
+            mimeType: mimeType ?? "application/octet-stream",
+            kind: ChatAttachmentKind(rawValue: kind ?? "") ?? .document,
+            data: data ?? Data(),
+            extractedText: extractedText
+        )
+    }
+
+    func apply(_ attachment: ChatAttachment, sortIndex: Int32) {
+        id = attachment.id
+        fileName = attachment.fileName
+        mimeType = attachment.mimeType
+        kind = attachment.kind.rawValue
+        data = attachment.data
+        extractedText = attachment.extractedText
+        self.sortIndex = sortIndex
     }
 }

@@ -22,6 +22,10 @@ protocol AIProvider: AnyObject {
     /// logic never await the network.
     var supportedModels: [AIModel] { get }
 
+    /// Whether this provider/model family can receive image attachments
+    /// through OpenAI-compatible multimodal content parts.
+    var supportsImages: Bool { get }
+
     /// Re-fetches the model list from the provider (GET /models on
     /// OpenAI-compatible endpoints) and refreshes the cache. Called
     /// when a provider is registered — doubling as a connectivity and

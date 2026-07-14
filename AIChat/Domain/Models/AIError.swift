@@ -26,6 +26,8 @@ enum AIError: Error, Equatable {
     case modelUnavailable
     /// The stream ended unexpectedly or a chunk could not be parsed.
     case malformedResponse
+    /// Provider returned a safe, user-actionable error message.
+    case providerRejected(message: String)
     /// The user cancelled the request. Not shown as an error in UI.
     case cancelled
     /// Anything else. debugDescription is for logs only.
@@ -47,6 +49,8 @@ extension AIError: LocalizedError {
             return "Seçilen model şu anda kullanılamıyor. Ayarlardan farklı bir model seçin."
         case .malformedResponse:
             return "Yanıt işlenirken bir sorun oluştu. Lütfen tekrar deneyin."
+        case .providerRejected(let message):
+            return message
         case .cancelled:
             return nil // user's own action — routing/status concern, not an error banner
         case .unknown:

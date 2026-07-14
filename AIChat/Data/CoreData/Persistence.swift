@@ -61,7 +61,8 @@ struct PersistenceController {
                 URL(fileURLWithPath: "/dev/null")
         }
 
-        print(container.persistentStoreDescriptions.first?.url)
+        container.persistentStoreDescriptions.first?.shouldMigrateStoreAutomatically = true
+        container.persistentStoreDescriptions.first?.shouldInferMappingModelAutomatically = true
         
         container.loadPersistentStores { _, error in
             if let error = error as NSError? {

@@ -138,6 +138,7 @@ final class SettingsViewModel {
             name: "Yeni Sağlayıcı",
             baseURL: URL(string: "http://localhost:11434/v1")!,
             requiresAPIKey: false,
+            supportsImages: false,
             models: [.init(id: "llama3")]
         )
         providerConfigStore.save(config)
@@ -166,6 +167,10 @@ final class SettingsViewModel {
         updated.baseURL = baseURL
         updated.requiresAPIKey = requiresAPIKeyDraft
         updated.models = parsedModels
+        updated.supportsImages = Self.inferImageSupport(
+            baseURL: baseURL,
+            models: updated.models
+        )
         updated.modelsFetchedAt = Date()
 
         providerConfigStore.save(updated)
@@ -237,6 +242,10 @@ final class SettingsViewModel {
                     displayName: $0.displayName
                 )
             }
+            refreshedConfig.supportsImages = Self.inferImageSupport(
+                baseURL: baseURL,
+                models: refreshedConfig.models
+            )
             refreshedConfig.modelsFetchedAt = Date()
 
             providerConfigStore.save(refreshedConfig)
@@ -376,5 +385,27 @@ final class SettingsViewModel {
 
     static func tag(providerID: String, modelID: String) -> String {
         "\(providerID)|\(modelID)"
+    }
+
+    private static func inferImageSupport(
+        baseURL: URL,
+        models: [ProviderConfig.CachedModel]
+    ) -> Bool {
+        let host = (baseURL.host() ?? "").lowercased()
+        if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+            return false
+        }
+        if host.contains("generativelanguage.googleapis.com") {
+            return true
+        }
+        if host.contains("api.openai.com") {
+            return models.contains { model in
+                let id = model.id.lowercased()
+                return id.contains("gpt-4o")
+                    || id.contains("gpt-4.1")
+                    || id.contains("vision")
+            }
+        }
+        return false
     }
 }

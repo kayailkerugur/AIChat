@@ -44,6 +44,7 @@ final class MockAIProvider: AIProvider {
     // MARK: - AIProvider
 
     let id = "mock"
+    let supportsImages = true
 
     let supportedModels: [AIModel] = [
         AIModel(id: "mock-fast", displayName: "Mock Fast", providerID: "mock"),

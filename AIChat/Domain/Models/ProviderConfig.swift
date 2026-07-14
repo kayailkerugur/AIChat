@@ -21,6 +21,7 @@ struct ProviderConfig: Codable, Identifiable, Equatable {
     var name: String
     var baseURL: URL
     var requiresAPIKey: Bool
+    var supportsImages: Bool
 
     /// OpenAI-compatible endpoint kullanan provider'larda genelde:
     /// GET {baseURL}/models
@@ -36,6 +37,7 @@ struct ProviderConfig: Codable, Identifiable, Equatable {
         name: String,
         baseURL: URL,
         requiresAPIKey: Bool,
+        supportsImages: Bool = false,
         models: [CachedModel] = [],
         modelsFetchedAt: Date? = nil
     ) {
@@ -43,8 +45,30 @@ struct ProviderConfig: Codable, Identifiable, Equatable {
         self.name = name
         self.baseURL = baseURL
         self.requiresAPIKey = requiresAPIKey
+        self.supportsImages = supportsImages
         self.models = models
         self.modelsFetchedAt = modelsFetchedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case baseURL
+        case requiresAPIKey
+        case supportsImages
+        case models
+        case modelsFetchedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        baseURL = try container.decode(URL.self, forKey: .baseURL)
+        requiresAPIKey = try container.decode(Bool.self, forKey: .requiresAPIKey)
+        supportsImages = try container.decodeIfPresent(Bool.self, forKey: .supportsImages) ?? false
+        models = try container.decodeIfPresent([CachedModel].self, forKey: .models) ?? []
+        modelsFetchedAt = try container.decodeIfPresent(Date.self, forKey: .modelsFetchedAt)
     }
 
     struct CachedModel: Codable, Equatable, Identifiable {

@@ -16,7 +16,18 @@
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="role" attributeType="String"/>
         <attribute name="status" attributeType="String"/>
+        <relationship name="attachments" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDAttachment" inverseName="message" inverseEntity="CDAttachment"/>
         <relationship name="conversation" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDConversation" inverseName="messages" inverseEntity="CDConversation"/>
+    </entity>
+    <entity name="CDAttachment" representedClassName=".CDAttachment" syncable="YES" codeGenerationType="class">
+        <attribute name="data" attributeType="Binary"/>
+        <attribute name="extractedText" optional="YES" attributeType="String"/>
+        <attribute name="fileName" attributeType="String"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="kind" attributeType="String"/>
+        <attribute name="mimeType" attributeType="String"/>
+        <attribute name="sortIndex" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="message" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDMessage" inverseName="attachments" inverseEntity="CDMessage"/>
     </entity>
     <entity name="Item" representedClassName="Item" syncable="YES" codeGenerationType="class">
         <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>

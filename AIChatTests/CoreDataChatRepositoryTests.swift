@@ -187,6 +187,33 @@ final class CoreDataChatRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched[0].status, .completed)
     }
 
+    func test_appendMessage_persistsAttachments() async throws {
+        let conversation = makeConversation()
+        try await repository.create(conversation)
+        let attachment = ChatAttachment(
+            fileName: "notlar.txt",
+            mimeType: "text/plain",
+            kind: .document,
+            data: Data("Merhaba".utf8),
+            extractedText: "Merhaba"
+        )
+        let message = ChatMessage(
+            role: .user,
+            content: "Bunu özetle",
+            attachments: [attachment]
+        )
+
+        try await repository.append(message, toConversation: conversation.id)
+
+        let fetched = try await repository.messages(inConversation: conversation.id)
+        XCTAssertEqual(fetched[0].attachments.count, 1)
+        XCTAssertEqual(fetched[0].attachments[0].fileName, "notlar.txt")
+        XCTAssertEqual(fetched[0].attachments[0].mimeType, "text/plain")
+        XCTAssertEqual(fetched[0].attachments[0].kind, .document)
+        XCTAssertEqual(fetched[0].attachments[0].data, Data("Merhaba".utf8))
+        XCTAssertEqual(fetched[0].attachments[0].extractedText, "Merhaba")
+    }
+
     func test_deleteMessage_removesOnlyThatMessage() async throws {
         let conversation = makeConversation()
         try await repository.create(conversation)

@@ -94,9 +94,9 @@ Not: ChatGPT Plus aboneliği OpenAI API kredisi yerine geçmez; OpenAI API için
 
 ## Ek Dosyalar
 
-Composer'daki ataç butonu ile görsel, PDF ve metin tabanlı doküman eklenebilir. Görseller OpenAI-compatible `image_url` content part olarak data URL biçiminde gönderilir. PDF ve text/json/csv dosyaları uygulama içinde metne çevrilir ve istek bağlamına text part olarak eklenir.
+Composer'daki ataç butonu ile görsel, PDF ve metin tabanlı doküman eklenebilir. Görseller, uygulamanın görsel destekli olarak tanıdığı sağlayıcılarda OpenAI-compatible `image_url` content part olarak data URL biçiminde gönderilir. PDF ve text/json/csv dosyaları uygulama içinde metne çevrilir ve istek bağlamına text part olarak eklenir.
 
-Ekler şu an gönderim anında modele iletilir; dosyanın binary içeriği Core Data geçmişine kalıcı olarak yazılmaz. Konuşma geçmişinde mesaj metni kalır, aynı oturumda gönderilen mesaj balonunda ek adı görünür.
+Ekler Core Data geçmişine mesajla birlikte kaydedilir. Sohbet yeniden açıldığında ek adları ve içerikleri geri yüklenir. Yerel LLM sağlayıcılarında görsel desteği kapalıysa görsel ekli mesaj gönderimi engellenir.
 
 ## Testler
 
@@ -121,4 +121,4 @@ Dört katman, tek yönlü bağımlılık: **Presentation → Domain ← Data / I
 - Kod bloklarında syntax highlighting yok (bilinçli kapsam sınırı)
 - Token kullanım bilgisi (`usage` event'i) üretiliyor ancak arayüzde gösterilmiyor
 - Sidebar yenilemesi callback tabanlı; store-driven güncellemeye taşınabilir
-- Ek dosya içerikleri Core Data'ya kalıcı olarak yazılmıyor
+- Word/Excel gibi zengin dokümanlardan metin çıkarımı henüz desteklenmiyor

@@ -12,6 +12,7 @@ final class GenericAIProvider: AIProvider {
 
     let id: String
     let supportedModels: [AIModel]
+    let supportsImages: Bool
 
     private let config: ProviderConfig
     private let secureStore: SecureStore
@@ -30,6 +31,7 @@ final class GenericAIProvider: AIProvider {
         self.urlSession = urlSession
         self.id = config.providerID
         self.supportedModels = config.asAIModels
+        self.supportsImages = config.supportsImages
     }
 
     func refreshModels() async throws -> [AIModel] {
@@ -128,7 +130,10 @@ final class GenericAIProvider: AIProvider {
             .appending(path: "completions"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(ChatCompletionsRequest(from: chatRequest))
+        request.httpBody = try JSONEncoder().encode(ChatCompletionsRequest(
+            from: chatRequest,
+            supportsImages: supportsImages
+        ))
         try applyAuthorization(to: &request)
         return request
     }
@@ -159,14 +164,26 @@ final class GenericAIProvider: AIProvider {
             if error?.isQuotaLike == true {
                 throw AIError.quotaExceeded
             }
-            throw error?.isModelLike == true ? AIError.modelUnavailable : AIError.unauthorized
+            if error?.isModelLike == true {
+                throw AIError.modelUnavailable
+            }
+            if let message = error?.safeUserMessage {
+                throw AIError.providerRejected(message: message)
+            }
+            throw AIError.unauthorized
         case 404:
             logger.error("Generic provider model or endpoint not found: HTTP 404")
             throw AIError.modelUnavailable
         case 429:
             let error = providerError(from: body)
             logger.notice("Generic provider rate limited: HTTP 429")
-            throw error?.isQuotaLike == true ? AIError.quotaExceeded : AIError.rateLimited
+            if error?.isQuotaLike == true {
+                throw AIError.quotaExceeded
+            }
+            if let message = error?.safeUserMessage {
+                throw AIError.providerRejected(message: message)
+            }
+            throw AIError.rateLimited
         default:
             logger.error("Generic provider unexpected status: HTTP \(http.statusCode)")
             throw AIError.unknown(debugDescription: "HTTP \(http.statusCode)")
@@ -288,11 +305,11 @@ private struct ChatCompletionsRequest: Encodable {
     let messages: [Message]
     let stream: Bool
 
-    init(from request: ChatRequest) {
+    init(from request: ChatRequest, supportsImages: Bool) {
         self.model = request.modelID
         self.stream = true
         self.messages = request.messages.compactMap { message in
-            let content = Self.content(from: message)
+            let content = Self.content(from: message, supportsImages: supportsImages)
             guard content != nil else { return nil }
             return Message(
                 role: message.role.rawValue,
@@ -301,7 +318,7 @@ private struct ChatCompletionsRequest: Encodable {
         }
     }
 
-    private static func content(from message: ChatMessage) -> MessageContent? {
+    private static func content(from message: ChatMessage, supportsImages: Bool) -> MessageContent? {
         guard !message.attachments.isEmpty else {
             return message.content.isEmpty ? nil : .text(message.content)
         }
@@ -314,7 +331,15 @@ private struct ChatCompletionsRequest: Encodable {
         for attachment in message.attachments {
             switch attachment.kind {
             case .image:
-                parts.append(.image(attachment))
+                if supportsImages {
+                    parts.append(.image(attachment))
+                } else {
+                    parts.append(.text("""
+                    Attached image was not sent because this provider is configured without image support.
+                    File: \(attachment.fileName)
+                    MIME type: \(attachment.mimeType)
+                    """))
+                }
             case .document:
                 if let text = attachment.extractedText, !text.isEmpty {
                     parts.append(.text("""
@@ -405,5 +430,15 @@ private struct ProviderErrorPayload: Decodable {
         let text = searchableText
         return text.contains("model")
             && (text.contains("not found") || text.contains("unavailable"))
+    }
+
+    var safeUserMessage: String? {
+        guard let message = error?.message else { return nil }
+        let collapsed = message
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty else { return nil }
+        return String(collapsed.prefix(180))
     }
 }

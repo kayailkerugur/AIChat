@@ -93,6 +93,10 @@ final class ChatViewModel {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let attachments = pendingAttachments
         guard (!text.isEmpty || !attachments.isEmpty), !isStreaming else { return }
+        guard aiProvider.supportsImages || !attachments.contains(where: { $0.kind == .image }) else {
+            errorMessage = "Seçili sağlayıcı görsel eklerini desteklemiyor. Görsel destekli farklı bir model veya sağlayıcı seçin."
+            return
+        }
 
         draft = ""
         pendingAttachments = []

@@ -125,6 +125,7 @@ final class CoreDataChatRepository: ConversationRepository, MessageRepository {
             let entity = CDMessage(context: context)
             entity.apply(message)
             entity.conversation = conversation
+            self.replaceAttachments(for: entity, with: message.attachments, in: context)
             try self.save(context, action: "append message")
         }
     }
@@ -135,6 +136,7 @@ final class CoreDataChatRepository: ConversationRepository, MessageRepository {
             guard let entity = try self.fetchMessage(message.id, in: context)
             else { return }
             entity.apply(message)
+            self.replaceAttachments(for: entity, with: message.attachments, in: context)
             try self.save(context, action: "update message")
         }
     }
@@ -207,6 +209,23 @@ final class CoreDataChatRepository: ConversationRepository, MessageRepository {
                 "Core Data save failed (\(action)): \(error.localizedDescription)"
             )
             throw error
+        }
+    }
+
+    private func replaceAttachments(
+        for message: CDMessage,
+        with attachments: [ChatAttachment],
+        in context: NSManagedObjectContext
+    ) {
+        let existing = (message.attachments as? Set<CDAttachment>) ?? []
+        for attachment in existing {
+            context.delete(attachment)
+        }
+
+        for (index, attachment) in attachments.enumerated() {
+            let entity = CDAttachment(context: context)
+            entity.apply(attachment, sortIndex: Int32(index))
+            entity.message = message
         }
     }
 }
