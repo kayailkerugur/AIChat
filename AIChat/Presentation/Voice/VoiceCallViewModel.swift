@@ -9,10 +9,7 @@
 //  pipeline exactly like a typed message, and the reply is read back
 //  on-device (LocalSpeechSynthesizer). Only the actual chat completion
 //  goes over the network — through whichever provider the conversation
-//  already uses, the same path a typed message takes. No dedicated
-//  realtime/Bidi socket or provider-specific audio endpoint involved (see
-//  GeminiLiveVoiceClient / OpenAIRealtimeVoiceClient for that
-//  still-present but currently unused path).
+//  already uses, the same path a typed message takes.
 //
 
 import Foundation

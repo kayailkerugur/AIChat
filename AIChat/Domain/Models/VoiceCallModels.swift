@@ -35,11 +35,3 @@ enum VoiceCallStatus: Equatable {
         }
     }
 }
-
-enum VoiceRealtimeEvent {
-    case connected
-    case userTranscript(String)
-    case assistantTranscript(String)
-    case assistantAudio(Data)
-    case error(String)
-}

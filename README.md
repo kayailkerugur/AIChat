@@ -108,8 +108,6 @@ Chat ekranındaki telefon butonu bas-konuş sesli görüşme modalını açar (y
 
 Ağa çıkan tek şey gerçek sohbet isteğidir (zaten var olan, çalışan yol); konuşmayı metne çevirme ve yanıtı seslendirme tamamen yerel olduğundan sağlayıcıya özel ses modeli/API anahtarı gerekmez.
 
-Projede ayrıca Gemini Live / OpenAI Realtime WebSocket API'lerine dayanan tam gerçek-zamanlı (full-duplex) bir sesli görüşme denemesi de bulunuyor (`AIChat/Data/Realtime/GeminiLiveVoiceClient.swift`, `OpenAIRealtimeVoiceClient.swift`, `AIChat/Domain/Protocols/VoiceRealtimeClient.swift`, `AIChat/Infrastructure/Audio/RealtimeAudioEngine.swift`) — şu an hiçbir yerden çağrılmıyor, yalnızca ileride bu API'lere erişim sağlanırsa tekrar devreye alınabilmesi için kodda tutuluyor.
-
 ## Testler
 
 **⌘U** ile çalıştırılır (ya da `xcodebuild test -scheme AIChat`). ~44 unit test şu alanları kapsar:
