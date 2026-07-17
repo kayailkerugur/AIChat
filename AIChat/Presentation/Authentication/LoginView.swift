@@ -9,6 +9,8 @@ import SwiftUI
 
 struct LoginView: View {
 
+    @Environment(\.aiChatSDKConfiguration) private var sdkConfiguration
+
     @State private var viewModel: LoginViewModel
 
     init(viewModel: LoginViewModel) {
@@ -21,15 +23,15 @@ struct LoginView: View {
 
             // App identity
             VStack(spacing: 8) {
-                Image(systemName: "bubble.left.and.text.bubble.right.fill")
+                Image(systemName: sdkConfiguration.branding.logoSystemName
+                    ?? "bubble.left.and.text.bubble.right.fill")
                     .font(.system(size: 56))
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
-
-                Text("AI Chat")
+                Text(sdkConfiguration.branding.applicationName)
                     .font(.largeTitle.bold())
 
-                Text("Devam etmek için giriş yapın")
+                Text(sdkConfiguration.branding.loginSubtitle)
                     .font(.body)
                     .foregroundStyle(.secondary)
             }

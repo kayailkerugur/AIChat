@@ -2,6 +2,17 @@
 
 SwiftUI ile geliştirilmiş, OAuth 2.0 (PKCE) girişli, streaming yanıtlı ve Core Data kalıcılıklı native macOS sohbet istemcisi. 30 günlük staj projesi kapsamında geliştirilmiştir.
 
+## SDK yapısı
+
+Proje artık iki ürün üretir:
+
+- `AIChatSDK`: İş mantığı, veri katmanı ve SwiftUI ekranlarını içeren, library evolution açık macOS framework'ü.
+- `AIChatDemo`: Yalnızca `@main` yaşam döngüsünü barındıran ve `AIChatSDKView` kullanan örnek host uygulaması.
+
+Host uygulamalar renk, uygulama adı, SF Symbol logo, giriş metni ve lisans anahtarını `AIChatSDKConfiguration` ile verir. Başlangıç/lisans olayları `AIChatSDKDelegate` üzerinden alınabilir. Entegrasyon ve binary dağıtım ayrıntıları için [SDK_INTEGRATION.md](SDK_INTEGRATION.md) dosyasına bakın.
+
+SDK'yı kullanan her host bundle identifier için ayrı Google OAuth istemcisi oluşturulmalı; client ID configuration üzerinden verilmeli ve reversed client ID host target'ın URL Types bölümüne eklenmelidir.
+
 ## Özellikler
 
 - Google hesabıyla OAuth 2.0 Authorization Code + PKCE girişi (`ASWebAuthenticationSession`)

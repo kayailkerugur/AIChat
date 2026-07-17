@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import AIChat
+@testable import AIChatSDK
 
 struct AIChatTests {
 

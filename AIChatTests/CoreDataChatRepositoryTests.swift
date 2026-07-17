@@ -7,7 +7,7 @@
 
 import XCTest
 import CoreData
-@testable import AIChat
+@testable import AIChatSDK
 
 final class CoreDataChatRepositoryTests: XCTestCase {
 

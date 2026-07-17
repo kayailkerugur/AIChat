@@ -44,8 +44,12 @@ final class AppDependencies {
     }
 
     /// Default configuration used by the running app.
-    static func makeDefault() -> AppDependencies {
-        let environment = AppEnvironment.production
+    static func makeDefault(
+        configuration: AIChatSDKConfiguration = .init()
+    ) -> AppDependencies {
+        let environment = AppEnvironment.production(
+            googleOAuth: configuration.googleOAuth
+        )
         let secureStore = KeychainStore()
         let providerConfigStore = UserDefaultsProviderConfigStore()
         let chatStore = CoreDataChatRepository(persistence: .shared)

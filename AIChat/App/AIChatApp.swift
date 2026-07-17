@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+#if AI_CHAT_LEGACY_APP
 @main
 struct AIChatApp: App {
 
@@ -23,3 +24,4 @@ struct AIChatApp: App {
         .windowResizability(.contentMinSize)
     }
 }
+#endif

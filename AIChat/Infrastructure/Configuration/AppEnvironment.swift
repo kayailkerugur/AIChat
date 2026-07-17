@@ -54,13 +54,29 @@ struct AppEnvironment {
 
     // MARK: - Environments
 
-    static let production = AppEnvironment(
-        googleOAuth: GoogleOAuthConfiguration(
+    static var production: AppEnvironment {
+        production(googleOAuth: nil)
+    }
+
+    static func production(
+        googleOAuth sdkConfiguration: AIChatSDKConfiguration.GoogleOAuth?
+    ) -> AppEnvironment {
+        let fallback = GoogleOAuthConfiguration(
             clientID: "322950785121-eg4r8f9k787iecdlnt3ike6as4el1flm.apps.googleusercontent.com",
             authorizationEndpoint: URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!,
             tokenEndpoint: URL(string: "https://oauth2.googleapis.com/token")!,
             userInfoEndpoint: URL(string: "https://openidconnect.googleapis.com/v1/userinfo")!,
             scopes: ["openid", "email", "profile"]
         )
-    )
+        guard let sdkConfiguration else {
+            return AppEnvironment(googleOAuth: fallback)
+        }
+        return AppEnvironment(googleOAuth: GoogleOAuthConfiguration(
+            clientID: sdkConfiguration.clientID,
+            authorizationEndpoint: sdkConfiguration.authorizationEndpoint,
+            tokenEndpoint: sdkConfiguration.tokenEndpoint,
+            userInfoEndpoint: sdkConfiguration.userInfoEndpoint,
+            scopes: sdkConfiguration.scopes
+        ))
+    }
 }

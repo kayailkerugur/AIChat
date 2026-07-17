@@ -54,7 +54,11 @@ struct PersistenceController {
     let container: NSPersistentContainer
 
     init(inMemory: Bool = false) {
-        container = NSPersistentContainer(name: "AIChat")
+        let frameworkBundle = Bundle(for: AIChatSDKBundleMarker.self)
+        guard let model = NSManagedObjectModel.mergedModel(from: [frameworkBundle]) else {
+            fatalError("AIChat Core Data model could not be loaded from the SDK bundle.")
+        }
+        container = NSPersistentContainer(name: "AIChat", managedObjectModel: model)
 
         if inMemory {
             container.persistentStoreDescriptions.first!.url =
@@ -91,3 +95,5 @@ struct PersistenceController {
         return context
     }
 }
+
+private final class AIChatSDKBundleMarker: NSObject {}

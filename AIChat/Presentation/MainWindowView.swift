@@ -20,6 +20,8 @@ import SwiftUI
 
 struct MainWindowView: View {
 
+    @Environment(\.aiChatSDKConfiguration) private var sdkConfiguration
+
     let session: AuthSession
     let dependencies: AppDependencies
 
@@ -69,7 +71,7 @@ struct MainWindowView: View {
         .navigationTitle(
             isShowingSettings
                 ? "Ayarlar"
-                : (sidebarViewModel.selectedConversation?.title ?? "AI Chat")
+                : (sidebarViewModel.selectedConversation?.title ?? sdkConfiguration.branding.applicationName)
         )
         .onChange(of: sidebarViewModel.selectedConversationID) { _, newValue in
             // Picking a conversation in the sidebar leaves Settings.

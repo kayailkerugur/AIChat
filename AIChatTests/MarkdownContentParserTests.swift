@@ -6,7 +6,7 @@
 //
 
 import XCTest
-@testable import AIChat
+@testable import AIChatSDK
 
 final class MarkdownContentParserTests: XCTestCase {
 
