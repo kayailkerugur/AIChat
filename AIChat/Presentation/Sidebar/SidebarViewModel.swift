@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import AIChatSDK
 import Observation
 import os
 

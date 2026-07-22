@@ -10,6 +10,7 @@
 //
 
 import SwiftUI
+import AIChatSDK
 
 struct SidebarView: View {
 

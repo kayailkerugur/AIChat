@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import AIChatSDK
 import os
 
 @MainActor
@@ -46,9 +47,17 @@ final class AppDependencies {
     /// Default configuration used by the running app.
     static func makeDefault() -> AppDependencies {
         let environment = AppEnvironment.production
-        let secureStore = KeychainStore()
+        let secureStore = KeychainStore(
+            service: (Bundle.main.bundleIdentifier ?? "com.aichat.app") + ".secure"
+        )
         let providerConfigStore = UserDefaultsProviderConfigStore()
-        let chatStore = CoreDataChatRepository(persistence: .shared)
+        let attachmentFileStore = AttachmentFileStore.applicationSupport(
+            appIdentifier: Bundle.main.bundleIdentifier ?? "AIChat"
+        )
+        let chatStore = CoreDataChatRepository(
+            persistence: .shared,
+            attachmentFileStore: attachmentFileStore
+        )
 
         let aiProviders = ConfigBackedAIProviderRegistry(
             configStore: providerConfigStore,

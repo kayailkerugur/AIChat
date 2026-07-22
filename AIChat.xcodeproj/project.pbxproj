@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A1C000012FF7000000000001 /* AIChatSDK in Frameworks */ = {isa = PBXBuildFile; productRef = A1C000032FF7000000000001 /* AIChatSDK */; };
+		A1C000042FF7000000000001 /* AIChatSDK in Frameworks */ = {isa = PBXBuildFile; productRef = A1C000052FF7000000000001 /* AIChatSDK */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		6ACA17502FF65EAF00FD70AC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1C000012FF7000000000001 /* AIChatSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,6 +65,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1C000042FF7000000000001 /* AIChatSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,7 @@
 			);
 			name = AIChat;
 			packageProductDependencies = (
+				A1C000032FF7000000000001 /* AIChatSDK */,
 			);
 			productName = AIChat;
 			productReference = 6ACA173D2FF65EAD00FD70AC /* AIChat.app */;
@@ -135,6 +143,7 @@
 			);
 			name = AIChatTests;
 			packageProductDependencies = (
+				A1C000052FF7000000000001 /* AIChatSDK */,
 			);
 			productName = AIChatTests;
 			productReference = 6ACA174F2FF65EAF00FD70AC /* AIChatTests.xctest */;
@@ -195,6 +204,9 @@
 			);
 			mainGroup = 6ACA17342FF65EAD00FD70AC;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1C000022FF7000000000001 /* XCLocalSwiftPackageReference "SDK/AIChatSDK" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6ACA173E2FF65EAD00FD70AC /* Products */;
 			projectDirPath = "";
@@ -599,6 +611,26 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A1C000022FF7000000000001 /* XCLocalSwiftPackageReference "SDK/AIChatSDK" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = SDK/AIChatSDK;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1C000032FF7000000000001 /* AIChatSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1C000022FF7000000000001 /* XCLocalSwiftPackageReference "SDK/AIChatSDK" */;
+			productName = AIChatSDK;
+		};
+		A1C000052FF7000000000001 /* AIChatSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1C000022FF7000000000001 /* XCLocalSwiftPackageReference "SDK/AIChatSDK" */;
+			productName = AIChatSDK;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 6ACA17352FF65EAD00FD70AC /* Project object */;
 }

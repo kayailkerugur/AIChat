@@ -11,6 +11,7 @@
 //  ONLY this — never UserDefaults, Core Data, plist or logs (spec §6.2).
 //
 
+import AIChatSDK
 import Foundation
 
 /// Well-known, compile-time keys. Raw values are the Keychain account
@@ -21,22 +22,6 @@ enum SecureStoreKey: String, CaseIterable {
     /// Access token expiry as a unix timestamp string — stored alongside
     /// the token so restore can decide between reuse and refresh.
     case oauthTokenExpiry = "auth.google.token-expiry"
-}
-
-enum SecureStoreError: Error, Equatable {
-    /// Keychain returned an unexpected OSStatus.
-    case unhandled(status: Int32)
-    /// Stored bytes could not be decoded as UTF-8.
-    case corruptedData
-}
-
-protocol SecureStore: AnyObject {
-    /// Returns nil when no value exists for the key.
-    func read(key: String) throws -> String?
-    /// Creates or overwrites the value.
-    func save(_ value: String, forKey key: String) throws
-    /// Deleting a non-existent key is not an error.
-    func delete(key: String) throws
 }
 
 // MARK: - Typed convenience for well-known keys

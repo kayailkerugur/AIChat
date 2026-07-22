@@ -17,6 +17,7 @@
 //
 
 import SwiftUI
+import AIChatSDK
 
 struct MainWindowView: View {
 

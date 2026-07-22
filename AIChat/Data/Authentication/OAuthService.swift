@@ -24,6 +24,7 @@
 //
 
 import Foundation
+import AIChatSDK
 import AuthenticationServices
 import AppKit
 import os

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AIChatSDK
 
 struct LoginView: View {
 
