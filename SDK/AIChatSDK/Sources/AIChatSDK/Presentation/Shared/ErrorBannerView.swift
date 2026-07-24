@@ -29,7 +29,7 @@ public struct ErrorBannerView: View {
                 .foregroundStyle(theme.warningColor)
 
             Text(message)
-                .font(.callout)
+                .font(theme.supportingFont)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Button(action: onDismiss) {

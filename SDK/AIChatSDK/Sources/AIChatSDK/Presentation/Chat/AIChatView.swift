@@ -19,9 +19,20 @@ import SwiftUI
 public struct AIChatView: View {
 
     @State private var viewModel: ChatViewModel
+    @Environment(\.aiChatTheme) private var environmentTheme
+    @Environment(\.aiChatBranding) private var environmentBranding
 
-    public init(viewModel: ChatViewModel) {
+    private let configuredTheme: AIChatTheme?
+    private let configuredBranding: AIChatBranding?
+
+    public init(
+        viewModel: ChatViewModel,
+        theme: AIChatTheme? = nil,
+        branding: AIChatBranding? = nil
+    ) {
         _viewModel = State(initialValue: viewModel)
+        configuredTheme = theme
+        configuredBranding = branding
     }
 
     private enum ScrollAnchor: Hashable { case bottom }
@@ -63,6 +74,8 @@ public struct AIChatView: View {
             )
         }
         .animation(.default, value: viewModel.errorMessage)
+        .environment(\.aiChatTheme, theme)
+        .environment(\.aiChatBranding, branding)
     }
 
     // MARK: - Pieces
@@ -91,7 +104,7 @@ public struct AIChatView: View {
                             viewModel.regenerateLastResponse()
                         } label: {
                             Label("Yeniden üret", systemImage: "arrow.clockwise")
-                                .font(.callout)
+                                .font(theme.supportingFont)
                         }
                         .buttonStyle(.borderless)
                     }
@@ -117,18 +130,32 @@ public struct AIChatView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "bubble.left.and.text.bubble.right")
+            if let logo = branding.logo {
+                logo
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 120, maxHeight: 48)
+            }
+            branding.emptyStateImage
                 .font(.system(size: 40))
                 .foregroundStyle(.tertiary)
             Text("Yeni bir sohbete başlayın")
-                .font(.title3)
+                .font(theme.titleFont)
             Text("Aşağıdaki alana ilk mesajınızı yazın. Markdown denemek için \"liste\", kod bloğu için \"kod\" kelimesini kullanabilirsiniz.")
-                .font(.callout)
+                .font(theme.supportingFont)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var theme: AIChatTheme {
+        configuredTheme ?? environmentTheme
+    }
+
+    private var branding: AIChatBranding {
+        configuredBranding ?? environmentBranding
     }
 }
 

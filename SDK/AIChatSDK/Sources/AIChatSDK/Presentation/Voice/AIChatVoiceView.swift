@@ -38,13 +38,13 @@ public struct AIChatVoiceView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Sesli Görüşme")
-                    .font(.title2.bold())
+                    .font(theme.voiceTitleFont)
                 Text(viewModel.status.title)
-                    .font(.callout)
+                    .font(theme.supportingFont)
                     .foregroundStyle(.secondary)
                 if let activeModelName = viewModel.activeModelName {
                     Text(activeModelName)
-                        .font(.caption)
+                        .font(theme.captionFont)
                         .foregroundStyle(.tertiary)
                 }
             }
@@ -94,11 +94,11 @@ public struct AIChatVoiceView: View {
     private func transcriptSection(title: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.caption)
+                .font(theme.captionFont)
                 .foregroundStyle(.secondary)
             ScrollView {
                 Text(text.isEmpty ? "..." : text)
-                    .font(.callout)
+                    .font(theme.supportingFont)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -114,7 +114,7 @@ public struct AIChatVoiceView: View {
             pushToTalkButton
             if case .failed(let message) = viewModel.status {
                 Text(message)
-                    .font(.caption)
+                    .font(theme.captionFont)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(3)

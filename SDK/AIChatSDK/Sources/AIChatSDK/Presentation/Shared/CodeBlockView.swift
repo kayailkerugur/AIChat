@@ -13,6 +13,7 @@ public struct CodeBlockView: View {
     let code: String
 
     @State private var didCopy = false
+    @Environment(\.aiChatTheme) private var theme
 
     public init(language: String?, code: String) {
         self.language = language
@@ -27,7 +28,7 @@ public struct CodeBlockView: View {
 
             ScrollView(.horizontal, showsIndicators: true) {
                 Text(code)
-                    .font(.system(.callout, design: .monospaced))
+                    .font(theme.codeFont)
                     .textSelection(.enabled)
                     .padding(10)
             }
@@ -43,7 +44,7 @@ public struct CodeBlockView: View {
     private var header: some View {
         HStack {
             Text(language ?? "kod")
-                .font(.caption)
+                .font(theme.captionFont)
                 .foregroundStyle(.secondary)
 
             Spacer()
@@ -62,7 +63,7 @@ public struct CodeBlockView: View {
                     didCopy ? "Kopyalandı" : "Kopyala",
                     systemImage: didCopy ? "checkmark" : "doc.on.doc"
                 )
-                .font(.caption)
+                .font(theme.captionFont)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Kod bloğunu kopyala")

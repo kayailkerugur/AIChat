@@ -76,13 +76,17 @@ public final class AIChatClient {
 
     public func makeChatView(
         for conversation: Conversation,
+        theme: AIChatTheme? = nil,
+        branding: AIChatBranding? = nil,
         onConversationMutated: @escaping @MainActor () -> Void = {}
     ) throws -> AIChatView {
         AIChatView(
             viewModel: try makeChatViewModel(
                 for: conversation,
                 onConversationMutated: onConversationMutated
-            )
+            ),
+            theme: theme,
+            branding: branding
         )
     }
 }

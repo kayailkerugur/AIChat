@@ -49,9 +49,8 @@ struct MainWindowView: View {
                 // screen (team review, item 1) — not as a modal sheet.
                 SettingsView(
                     viewModel: SettingsViewModel(
-                        secureStore: dependencies.secureStore,
                         registry: dependencies.aiProviders,
-                        providerConfigStore: dependencies.providerConfigStore,
+                        providerConfigurationService: dependencies.providerConfigurationService,
                         authService: dependencies.authService
                     ),
                     session: session

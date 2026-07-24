@@ -87,6 +87,7 @@ public struct MessageBubbleView: View {
                 MessageContentView(content: message.content)
             }
         }
+        .font(theme.bodyFont)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
@@ -102,7 +103,7 @@ public struct MessageBubbleView: View {
                     copyToPasteboard(message.content)
                 } label: {
                     Image(systemName: "doc.on.doc")
-                        .font(.caption)
+                        .font(theme.captionFont)
                 }
                 .buttonStyle(.borderless)
                 .padding(4)
@@ -116,7 +117,7 @@ public struct MessageBubbleView: View {
         switch message.status {
         case .cancelled:
             Text("Yanıt durduruldu")
-                .font(.caption)
+                .font(theme.captionFont)
                 .foregroundStyle(.secondary)
 
         case .failed:
@@ -124,10 +125,10 @@ public struct MessageBubbleView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(theme.warningColor)
                 Text(message.errorDescription ?? "Bir hata oluştu.")
-                    .font(.caption)
+                    .font(theme.captionFont)
                 if let onRetry {
                     Button("Tekrar dene", action: onRetry)
-                        .font(.caption)
+                        .font(theme.captionFont)
                         .buttonStyle(.link)
                 }
             }

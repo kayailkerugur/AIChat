@@ -30,9 +30,25 @@ final class PublicAPITests: XCTestCase {
             warningColor: .pink,
             recordingColor: .brown,
             waitingColor: .cyan,
-            speakingColor: .mint
+            speakingColor: .mint,
+            titleFont: .largeTitle,
+            voiceTitleFont: .title,
+            bodyFont: .body,
+            supportingFont: .subheadline,
+            captionFont: .caption2,
+            codeFont: .system(.body, design: .monospaced)
         )
 
         _ = EmptyView().aiChatTheme(theme)
+    }
+
+    @MainActor
+    func test_brandingSupportsLogoAndEmptyStateImage() {
+        let branding = AIChatBranding(
+            logo: Image(systemName: "sparkles"),
+            emptyStateImage: Image(systemName: "message")
+        )
+
+        _ = EmptyView().aiChatBranding(branding)
     }
 }

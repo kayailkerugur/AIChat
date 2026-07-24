@@ -23,7 +23,7 @@ final class AppDependencies {
     let conversationRepository: ConversationRepository
     let messageRepository: MessageRepository
     let secureStore: SecureStore
-    let providerConfigStore: ProviderConfigStore
+    let providerConfigurationService: AIProviderConfigurationService
     let environment: AppEnvironment
 
     init(
@@ -32,7 +32,7 @@ final class AppDependencies {
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
         secureStore: SecureStore,
-        providerConfigStore: ProviderConfigStore,
+        providerConfigurationService: AIProviderConfigurationService,
         environment: AppEnvironment
     ) {
         self.authService = authService
@@ -40,7 +40,7 @@ final class AppDependencies {
         self.conversationRepository = conversationRepository
         self.messageRepository = messageRepository
         self.secureStore = secureStore
-        self.providerConfigStore = providerConfigStore
+        self.providerConfigurationService = providerConfigurationService
         self.environment = environment
     }
 
@@ -60,6 +60,10 @@ final class AppDependencies {
         )
 
         let aiProviders = ConfigBackedAIProviderRegistry(
+            configStore: providerConfigStore,
+            secureStore: secureStore
+        )
+        let providerConfigurationService = DefaultAIProviderConfigurationService(
             configStore: providerConfigStore,
             secureStore: secureStore
         )
@@ -86,7 +90,7 @@ final class AppDependencies {
             conversationRepository: chatStore,
             messageRepository: chatStore,
             secureStore: secureStore,
-            providerConfigStore: providerConfigStore,
+            providerConfigurationService: providerConfigurationService,
             environment: environment
         )
     }
@@ -106,6 +110,10 @@ final class AppDependencies {
         let aiProviders = StaticAIProviderRegistry(providers: [
             mockProvider
         ])
+        let providerConfigurationService = DefaultAIProviderConfigurationService(
+            configStore: providerConfigStore,
+            secureStore: secureStore
+        )
 
         return AppDependencies(
             authService: MockAuthService(behavior: authBehavior),
@@ -113,7 +121,7 @@ final class AppDependencies {
             conversationRepository: chatStore,
             messageRepository: chatStore,
             secureStore: secureStore,
-            providerConfigStore: providerConfigStore,
+            providerConfigurationService: providerConfigurationService,
             environment: .production
         )
     }

@@ -256,12 +256,14 @@ struct SettingsView: View {
 
     return SettingsView(
         viewModel: SettingsViewModel(
-            secureStore: InMemorySecureStore(),
             registry: ConfigBackedAIProviderRegistry(
                 configStore: store,
                 secureStore: InMemorySecureStore()
             ),
-            providerConfigStore: store,
+            providerConfigurationService: DefaultAIProviderConfigurationService(
+                configStore: store,
+                secureStore: InMemorySecureStore()
+            ),
             authService: MockAuthService()
         ),
         session: AuthSession(

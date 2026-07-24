@@ -8,7 +8,6 @@
 import Foundation
 import AIChatSDK
 import Observation
-import os
 
 @MainActor
 @Observable
@@ -37,7 +36,7 @@ final class SettingsViewModel {
     }
 
     var providerConfigs: [ProviderConfig] {
-        providerConfigStore.configs
+        providerConfigurationService.configurations
     }
 
     var selectedProvider: ProviderConfig? {
@@ -75,11 +74,9 @@ final class SettingsViewModel {
 
     // MARK: - Dependencies
 
-    private let secureStore: SecureStore
     private let registry: AIProviderRegistry
-    private let providerConfigStore: ProviderConfigStore
+    private let providerConfigurationService: AIProviderConfigurationService
     private let authService: AuthService
-    private let logger = AppLogger.auth
 
     private static let modelKey = "settings.defaultModelID"
     private static let providerKey = "settings.defaultProviderID"
@@ -90,14 +87,12 @@ final class SettingsViewModel {
     }()
 
     init(
-        secureStore: SecureStore,
         registry: AIProviderRegistry,
-        providerConfigStore: ProviderConfigStore,
+        providerConfigurationService: AIProviderConfigurationService,
         authService: AuthService
     ) {
-        self.secureStore = secureStore
         self.registry = registry
-        self.providerConfigStore = providerConfigStore
+        self.providerConfigurationService = providerConfigurationService
         self.authService = authService
 
         let preferred = Self.preferredModel(in: registry)
@@ -105,7 +100,7 @@ final class SettingsViewModel {
             providerID: preferred.providerID,
             modelID: preferred.id
         )
-        self.selectedProviderID = providerConfigStore.configs.first?.id
+        self.selectedProviderID = providerConfigurationService.configurations.first?.id
 
         loadSelectedProviderDrafts()
     }
@@ -135,14 +130,7 @@ final class SettingsViewModel {
     // MARK: - Provider intents
 
     func addProvider() {
-        let config = ProviderConfig(
-            name: "Yeni Sağlayıcı",
-            baseURL: URL(string: "http://localhost:11434/v1")!,
-            requiresAPIKey: false,
-            supportsImages: false,
-            models: [.init(id: "llama3")]
-        )
-        providerConfigStore.save(config)
+        let config = providerConfigurationService.addDefaultProvider()
         selectedProviderID = config.id
         selectedModelTag = Self.tag(providerID: config.providerID, modelID: "llama3")
         persistDefaultModelTag()
@@ -168,13 +156,7 @@ final class SettingsViewModel {
         updated.baseURL = baseURL
         updated.requiresAPIKey = requiresAPIKeyDraft
         updated.models = parsedModels
-        updated.supportsImages = Self.inferImageSupport(
-            baseURL: baseURL,
-            models: updated.models
-        )
-        updated.modelsFetchedAt = Date()
-
-        providerConfigStore.save(updated)
+        updated = providerConfigurationService.save(updated)
         selectedProviderID = updated.id
 
         if !updated.asAIModels.contains(where: {
@@ -215,11 +197,13 @@ final class SettingsViewModel {
             let trimmedKey = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedKey.isEmpty {
                 do {
-                    try secureStore.save(trimmedKey, forKey: refreshedConfig.apiKeyStorageKey)
+                    try providerConfigurationService.saveCredential(
+                        trimmedKey,
+                        for: refreshedConfig
+                    )
                     apiKeyDraft = ""
                     refreshKeyStatus()
                 } catch {
-                    logger.error("API key save before model refresh failed: \(String(describing: error))")
                     errorMessage = "API anahtarı kaydedilemedi."
                     return
                 }
@@ -227,29 +211,11 @@ final class SettingsViewModel {
         }
 
         do {
-            let provider = GenericAIProvider(
-                config: refreshedConfig,
-                secureStore: secureStore
+            refreshedConfig = try await providerConfigurationService.refreshModels(
+                for: refreshedConfig,
+                credential: nil
             )
-            let models = try await provider.refreshModels()
-            guard !models.isEmpty else {
-                errorMessage = "Sağlayıcıdan model bulunamadı."
-                return
-            }
-
-            refreshedConfig.models = models.map {
-                ProviderConfig.CachedModel(
-                    id: $0.id,
-                    displayName: $0.displayName
-                )
-            }
-            refreshedConfig.supportsImages = Self.inferImageSupport(
-                baseURL: baseURL,
-                models: refreshedConfig.models
-            )
-            refreshedConfig.modelsFetchedAt = Date()
-
-            providerConfigStore.save(refreshedConfig)
+            let models = refreshedConfig.asAIModels
             selectedProviderID = refreshedConfig.id
             modelsDraft = refreshedConfig.models.map(\.id).joined(separator: "\n")
 
@@ -264,10 +230,11 @@ final class SettingsViewModel {
 
             infoMessage = "\(models.count) model yüklendi."
             errorMessage = nil
+        } catch let error as AIProviderConfigurationError {
+            errorMessage = error.errorDescription ?? "Modeller çekilemedi."
         } catch let error as AIError {
             errorMessage = error.errorDescription ?? "Modeller çekilemedi."
         } catch {
-            logger.error("Model refresh failed: \(String(describing: error))")
             errorMessage = "Modeller çekilemedi."
         }
     }
@@ -275,13 +242,7 @@ final class SettingsViewModel {
     func deleteSelectedProvider() {
         guard let selectedProvider else { return }
 
-        do {
-            try secureStore.delete(key: selectedProvider.apiKeyStorageKey)
-        } catch {
-            logger.error("Provider API key delete failed: \(String(describing: error))")
-        }
-
-        providerConfigStore.delete(id: selectedProvider.id)
+        providerConfigurationService.delete(selectedProvider)
         selectedProviderID = providerConfigs.first?.id
 
         if let firstModel = registry.allModels.first {
@@ -304,13 +265,12 @@ final class SettingsViewModel {
         guard !trimmed.isEmpty else { return }
 
         do {
-            try secureStore.save(trimmed, forKey: selectedProvider.apiKeyStorageKey)
+            try providerConfigurationService.saveCredential(trimmed, for: selectedProvider)
             apiKeyDraft = ""
             infoMessage = "API anahtarı güvenli olarak kaydedildi."
             errorMessage = nil
             refreshKeyStatus()
         } catch {
-            logger.error("API key save failed: \(String(describing: error))")
             errorMessage = "API anahtarı kaydedilemedi."
         }
     }
@@ -319,12 +279,11 @@ final class SettingsViewModel {
         guard let selectedProvider else { return }
 
         do {
-            try secureStore.delete(key: selectedProvider.apiKeyStorageKey)
+            try providerConfigurationService.deleteCredential(for: selectedProvider)
             infoMessage = "API anahtarı silindi."
             errorMessage = nil
             refreshKeyStatus()
         } catch {
-            logger.error("API key delete failed: \(String(describing: error))")
             errorMessage = "API anahtarı silinemedi."
         }
     }
@@ -374,7 +333,7 @@ final class SettingsViewModel {
             hasStoredAPIKey = false
             return
         }
-        hasStoredAPIKey = ((try? secureStore.read(key: selectedProvider.apiKeyStorageKey)) ?? nil)?.isEmpty == false
+        hasStoredAPIKey = providerConfigurationService.hasCredential(for: selectedProvider)
     }
 
     private func persistDefaultModelTag() {
@@ -388,25 +347,4 @@ final class SettingsViewModel {
         "\(providerID)|\(modelID)"
     }
 
-    private static func inferImageSupport(
-        baseURL: URL,
-        models: [ProviderConfig.CachedModel]
-    ) -> Bool {
-        let host = (baseURL.host() ?? "").lowercased()
-        if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-            return false
-        }
-        if host.contains("generativelanguage.googleapis.com") {
-            return true
-        }
-        if host.contains("api.openai.com") {
-            return models.contains { model in
-                let id = model.id.lowercased()
-                return id.contains("gpt-4o")
-                    || id.contains("gpt-4.1")
-                    || id.contains("vision")
-            }
-        }
-        return false
-    }
 }

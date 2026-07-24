@@ -108,7 +108,7 @@ public struct ComposerView: View {
             // TextEditor has no placeholder of its own.
             if draft.isEmpty {
                 Text("Mesajınızı yazın…")
-                    .font(.body)
+                    .font(theme.bodyFont)
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 8)
@@ -116,7 +116,7 @@ public struct ComposerView: View {
             }
 
             TextEditor(text: $draft)
-                .font(.body)
+                .font(theme.bodyFont)
                 .scrollContentBackground(.hidden)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 8)
@@ -159,7 +159,7 @@ public struct ComposerView: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel("Eki kaldır")
                     }
-                    .font(.caption)
+                    .font(theme.captionFont)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(.quaternary.opacity(0.6), in: Capsule())
@@ -174,7 +174,7 @@ public struct ComposerView: View {
     /// through the preference key.
     private var heightMeasurer: some View {
         Text(draft.isEmpty ? " " : draft)
-            .font(.body)
+            .font(theme.bodyFont)
             .padding(.horizontal, 9)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
