@@ -26,6 +26,7 @@ final class SidebarViewModel {
     private(set) var conversations: [Conversation] = []
     private(set) var errorMessage: String?
     var selectedConversationID: UUID?
+    var selectedProjectID: UUID?
     var searchText: String = ""
 
     var selectedConversation: Conversation? {
@@ -36,6 +37,8 @@ final class SidebarViewModel {
     // MARK: - Dependencies
 
     private let conversationRepository: ConversationRepository
+    private let usesProjects: Bool
+    private let requiresProjectForNewConversation: Bool
     /// Closure, not a value: the preferred model (and thus provider)
     /// can change in Settings at any time — each new conversation
     /// reads it fresh.
@@ -45,12 +48,18 @@ final class SidebarViewModel {
     /// MainWindowView sets this to drop the cached ChatViewModel
     /// (and cancel its stream) when a conversation is deleted.
     var onConversationDeleted: ((UUID) -> Void)?
+    var onConversationMoved: ((UUID) -> Void)?
 
     init(
         conversationRepository: ConversationRepository,
+        usesProjects: Bool,
+        requiresProjectForNewConversation: Bool = false,
         defaultModel: @escaping () -> AIModel
     ) {
         self.conversationRepository = conversationRepository
+        self.usesProjects = usesProjects
+        self.requiresProjectForNewConversation =
+            requiresProjectForNewConversation
         self.defaultModel = defaultModel
     }
 
@@ -62,8 +71,19 @@ final class SidebarViewModel {
 
     func refresh() async {
         do {
-            conversations = try await conversationRepository
-                .searchConversations(matching: searchText)
+            if !usesProjects {
+                conversations = try await conversationRepository
+                    .searchConversations(matching: searchText)
+            } else if searchText.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).isEmpty {
+                conversations = try await conversationRepository
+                    .conversations(inProject: selectedProjectID)
+            } else {
+                conversations = try await conversationRepository
+                    .searchConversations(matching: searchText)
+                    .filter { $0.projectID == selectedProjectID }
+            }
         } catch {
             logger.error("refresh conversations failed: \(error.localizedDescription)")
             errorMessage = "Sohbetler yüklenemedi."
@@ -71,6 +91,10 @@ final class SidebarViewModel {
     }
 
     func createConversation() async {
+        if requiresProjectForNewConversation, selectedProjectID == nil {
+            errorMessage = "Yeni sohbet için önce bir proje seçin."
+            return
+        }
         let model = defaultModel()
         guard !model.providerID.isEmpty, !model.id.isEmpty else {
             errorMessage = "Yeni sohbet için önce Ayarlar'dan bir sağlayıcı ve model ekleyin."
@@ -79,7 +103,8 @@ final class SidebarViewModel {
         let conversation = Conversation(
             title: Self.defaultTitle,
             providerID: model.providerID,
-            modelID: model.id
+            modelID: model.id,
+            projectID: usesProjects ? selectedProjectID : nil
         )
         do {
             try await conversationRepository.create(conversation)
@@ -116,6 +141,28 @@ final class SidebarViewModel {
         } catch {
             logger.error("delete conversation failed: \(error.localizedDescription)")
             errorMessage = "Sohbet silinemedi."
+        }
+    }
+
+    func move(
+        conversationID: UUID,
+        toProject projectID: UUID?
+    ) async {
+        do {
+            try await conversationRepository.move(
+                conversationID: conversationID,
+                toProject: projectID
+            )
+            onConversationMoved?(conversationID)
+            if selectedConversationID == conversationID {
+                selectedConversationID = nil
+            }
+            await refresh()
+        } catch {
+            logger.error(
+                "move conversation failed: \(error.localizedDescription)"
+            )
+            errorMessage = "Sohbet başka projeye taşınamadı."
         }
     }
 }

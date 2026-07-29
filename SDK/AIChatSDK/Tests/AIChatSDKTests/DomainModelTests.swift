@@ -51,6 +51,7 @@ final class DomainModelTests: XCTestCase {
         XCTAssertEqual(conversation.title, "Test")
         XCTAssertEqual(conversation.providerID, "provider")
         XCTAssertEqual(conversation.modelID, "model")
+        XCTAssertNil(conversation.projectID)
     }
 
     func testProviderConfigCodableRoundTrip() throws {

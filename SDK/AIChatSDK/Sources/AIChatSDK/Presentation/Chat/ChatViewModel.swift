@@ -51,6 +51,7 @@ public final class ChatViewModel {
     private let aiProvider: any AIProvider
     private let messageRepository: MessageRepository
     private let conversationRepository: ConversationRepository
+    private let contextProvider: (any ChatContextProvider)?
     private let onConversationMutated: @MainActor () -> Void
     private let defaultConversationTitle: String
     private let logger = SDKLogger.persistence
@@ -63,6 +64,7 @@ public final class ChatViewModel {
         messageRepository: MessageRepository,
         conversationRepository: ConversationRepository,
         defaultConversationTitle: String = "Yeni Sohbet",
+        contextProvider: (any ChatContextProvider)? = nil,
         onConversationMutated: @escaping @MainActor () -> Void = {}
     ) {
         self.conversation = conversation
@@ -70,6 +72,7 @@ public final class ChatViewModel {
         self.messageRepository = messageRepository
         self.conversationRepository = conversationRepository
         self.defaultConversationTitle = defaultConversationTitle
+        self.contextProvider = contextProvider
         self.onConversationMutated = onConversationMutated
     }
 
@@ -213,7 +216,11 @@ public final class ChatViewModel {
             ? conversation.modelID
             : (aiProvider.supportedModels.first?.id ?? conversation.modelID)
 
-        let request = ChatRequest(messages: history, modelID: modelID)
+        let context = contextProvider?.contextMessages() ?? []
+        let request = ChatRequest(
+            messages: context + history,
+            modelID: modelID
+        )
 
         streamTask = Task { [weak self] in
             guard let self else { return }

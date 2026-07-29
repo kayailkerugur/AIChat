@@ -8,8 +8,26 @@ struct ChatView: View {
 
     @State private var isShowingVoiceCall = false
 
+    let theme = AIChatTheme(
+        accentColor: .purple,
+        titleFont: .largeTitle,
+        bodyFont: .custom("Avenir Next", size: 15),
+        supportingFont: .custom("Avenir Next", size: 13),
+        captionFont: .caption,
+        codeFont: .system(.callout, design: .monospaced)
+    )
+
+    let branding = AIChatBranding(
+        logo: Image("CompanyLogo"),
+        emptyStateImage: Image(systemName: "sparkles")
+    )
+
     var body: some View {
-        AIChatView(viewModel: viewModel)
+        AIChatView(
+            viewModel: viewModel,
+            theme: theme,
+            branding: branding
+        )
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Button {

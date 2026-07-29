@@ -8,6 +8,26 @@
 import Foundation
 import CoreData
 
+// MARK: - CDProject
+
+extension CDProject {
+    func toDomain() -> AIChatProject {
+        AIChatProject(
+            id: id ?? UUID(),
+            name: name ?? "",
+            createdAt: createdAt ?? Date(),
+            updatedAt: updatedAt ?? Date()
+        )
+    }
+
+    func apply(_ project: AIChatProject) {
+        id = project.id
+        name = project.name
+        createdAt = project.createdAt
+        updatedAt = project.updatedAt
+    }
+}
+
 // MARK: - CDConversation
 
 extension CDConversation {
@@ -19,7 +39,8 @@ extension CDConversation {
             createdAt: createdAt ?? Date(),
             updatedAt: updatedAt ?? Date(),
             providerID: providerID ?? "",
-            modelID: modelID ?? ""
+            modelID: modelID ?? "",
+            projectID: projectID
         )
     }
 
@@ -30,6 +51,7 @@ extension CDConversation {
         updatedAt = conversation.updatedAt
         providerID = conversation.providerID
         modelID = conversation.modelID
+        projectID = conversation.projectID
     }
 }
 

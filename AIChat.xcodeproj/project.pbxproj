@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A1C000012FF7000000000001 /* AIChatSDK in Frameworks */ = {isa = PBXBuildFile; productRef = A1C000032FF7000000000001 /* AIChatSDK */; };
 		A1C000042FF7000000000001 /* AIChatSDK in Frameworks */ = {isa = PBXBuildFile; productRef = A1C000052FF7000000000001 /* AIChatSDK */; };
+		A1C000062FF7000000000001 /* AIChatSDK in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A1C000032FF7000000000001 /* AIChatSDK */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +28,20 @@
 			remoteInfo = AIChat;
 		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A1C000072FF7000000000001 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				A1C000062FF7000000000001 /* AIChatSDK in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		6ACA173D2FF65EAD00FD70AC /* AIChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -109,6 +124,7 @@
 				6ACA17392FF65EAD00FD70AC /* Sources */,
 				6ACA173A2FF65EAD00FD70AC /* Frameworks */,
 				6ACA173B2FF65EAD00FD70AC /* Resources */,
+				A1C000072FF7000000000001 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);

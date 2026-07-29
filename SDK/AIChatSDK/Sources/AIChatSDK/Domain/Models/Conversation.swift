@@ -7,6 +7,7 @@ public struct Conversation: Identifiable, Equatable, Hashable, Sendable {
     public var updatedAt: Date
     public var providerID: String
     public var modelID: String
+    public var projectID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -14,7 +15,8 @@ public struct Conversation: Identifiable, Equatable, Hashable, Sendable {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         providerID: String,
-        modelID: String
+        modelID: String,
+        projectID: UUID? = nil
     ) {
         self.id = id
         self.title = title
@@ -22,5 +24,6 @@ public struct Conversation: Identifiable, Equatable, Hashable, Sendable {
         self.updatedAt = updatedAt
         self.providerID = providerID
         self.modelID = modelID
+        self.projectID = projectID
     }
 }

@@ -40,13 +40,15 @@ final class CoreDataChatRepositoryTests: XCTestCase {
 
     private func makeConversation(
         title: String = "Test Sohbeti",
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        projectID: UUID? = nil
     ) -> Conversation {
         Conversation(
             title: title,
             updatedAt: updatedAt,
             providerID: "mock",
-            modelID: "mock-fast"
+            modelID: "mock-fast",
+            projectID: projectID
         )
     }
 
@@ -103,6 +105,36 @@ final class CoreDataChatRepositoryTests: XCTestCase {
 
         let fetched = try await repository.conversations()
         XCTAssertEqual(fetched.map(\.title), ["Birinci", "İkinci"])
+    }
+
+    func test_projectAssignmentPersistsFiltersAndMoves() async throws {
+        let firstProjectID = UUID()
+        let secondProjectID = UUID()
+        let assigned = makeConversation(
+            title: "Assigned",
+            projectID: firstProjectID
+        )
+        let unassigned = makeConversation(title: "Unassigned")
+        try await repository.create(assigned)
+        try await repository.create(unassigned)
+
+        let firstProject = try await repository.conversations(
+            inProject: firstProjectID
+        )
+        let withoutProject = try await repository.conversations(
+            inProject: nil
+        )
+        XCTAssertEqual(firstProject.map(\.id), [assigned.id])
+        XCTAssertEqual(withoutProject.map(\.id), [unassigned.id])
+
+        try await repository.move(
+            conversationID: assigned.id,
+            toProject: secondProjectID
+        )
+        let moved = try await repository.conversations(
+            inProject: secondProjectID
+        )
+        XCTAssertEqual(moved.first?.projectID, secondProjectID)
     }
 
     // MARK: - Cascade delete (acceptance criterion 10)

@@ -22,26 +22,44 @@ final class AppDependencies {
     let aiProviders: AIProviderRegistry
     let conversationRepository: ConversationRepository
     let messageRepository: MessageRepository
+    let projectRepository: ProjectRepository
     let secureStore: SecureStore
     let providerConfigurationService: AIProviderConfigurationService
     let environment: AppEnvironment
+    let aiChatClient: AIChatClient
+    let repositoryProvider: AppRepositoryProvider?
 
     init(
         authService: AuthService,
         aiProviders: AIProviderRegistry,
         conversationRepository: ConversationRepository,
         messageRepository: MessageRepository,
+        projectRepository: ProjectRepository,
         secureStore: SecureStore,
         providerConfigurationService: AIProviderConfigurationService,
-        environment: AppEnvironment
+        environment: AppEnvironment,
+        sdkConfiguration: AppSDKConfiguration = .current
     ) {
         self.authService = authService
         self.aiProviders = aiProviders
         self.conversationRepository = conversationRepository
         self.messageRepository = messageRepository
+        self.projectRepository = projectRepository
         self.secureStore = secureStore
         self.providerConfigurationService = providerConfigurationService
         self.environment = environment
+        let repositoryProvider = sdkConfiguration.mode == .code
+            ? AppRepositoryProvider(configuration: sdkConfiguration)
+            : nil
+        self.repositoryProvider = repositoryProvider
+        self.aiChatClient = AIChatClient(
+            configuration: sdkConfiguration.sdkConfiguration,
+            providerRegistry: aiProviders,
+            conversationRepository: conversationRepository,
+            messageRepository: messageRepository,
+            projectRepository: projectRepository,
+            repositoryProvider: repositoryProvider
+        )
     }
 
     /// Default configuration used by the running app.
@@ -58,6 +76,7 @@ final class AppDependencies {
             persistence: .shared,
             attachmentFileStore: attachmentFileStore
         )
+        let projectStore = CoreDataProjectRepository(persistence: .shared)
 
         let aiProviders = ConfigBackedAIProviderRegistry(
             configStore: providerConfigStore,
@@ -89,6 +108,7 @@ final class AppDependencies {
             aiProviders: aiProviders,
             conversationRepository: chatStore,
             messageRepository: chatStore,
+            projectRepository: projectStore,
             secureStore: secureStore,
             providerConfigurationService: providerConfigurationService,
             environment: environment
@@ -98,13 +118,19 @@ final class AppDependencies {
     /// Handy for SwiftUI previews & UI experiments — stays fully offline.
     static func makePreview(
         auth authBehavior: MockAuthService.Behavior = .init(latency: .zero),
-        ai aiBehavior: MockAIProvider.Behavior = .init(chunkDelay: .milliseconds(40))
+        ai aiBehavior: MockAIProvider.Behavior = .init(chunkDelay: .milliseconds(40)),
+        sdkConfiguration: AppSDKConfiguration = .current,
+        projects: [AIChatProject] = [],
+        conversations: [Conversation] = []
     ) -> AppDependencies {
         let secureStore = InMemorySecureStore()
         let providerConfigStore = UserDefaultsProviderConfigStore(
             defaults: UserDefaults(suiteName: "AIChat.preview.providers")!
         )
-        let chatStore = InMemoryChatRepository()
+        let chatStore = InMemoryChatRepository(
+            conversations: conversations
+        )
+        let projectStore = InMemoryProjectRepository(projects: projects)
 
         let mockProvider = MockAIProvider(behavior: aiBehavior)
         let aiProviders = StaticAIProviderRegistry(providers: [
@@ -120,9 +146,66 @@ final class AppDependencies {
             aiProviders: aiProviders,
             conversationRepository: chatStore,
             messageRepository: chatStore,
+            projectRepository: projectStore,
             secureStore: secureStore,
             providerConfigurationService: providerConfigurationService,
-            environment: .production
+            environment: .production,
+            sdkConfiguration: sdkConfiguration
+        )
+    }
+
+    /// Deterministic, offline dependency graph used only by UI test launches.
+    static func makeForUITesting(
+        mode: AIChatMode,
+        repositoryURL: URL? = nil,
+        repositoryError: RepositoryError? = nil
+    ) -> AppDependencies {
+        let primaryProjectID = UUID(
+            uuidString: "00000000-0000-0000-0000-000000000042"
+        )!
+        let secondaryProjectID = UUID(
+            uuidString: "00000000-0000-0000-0000-000000000043"
+        )!
+        let projects: [AIChatProject] = mode == .code
+            ? [
+                AIChatProject(
+                    id: primaryProjectID,
+                    name: "UI Test Project"
+                ),
+                AIChatProject(
+                    id: secondaryProjectID,
+                    name: "UI Test Project 2"
+                )
+            ]
+            : []
+        let conversations: [Conversation] = mode == .code
+            ? [
+                Conversation(
+                    id: UUID(
+                        uuidString:
+                            "00000000-0000-0000-0000-000000000044"
+                    )!,
+                    title: "UI Test Conversation",
+                    providerID: "mock",
+                    modelID: "mock-model",
+                    projectID: primaryProjectID
+                )
+            ]
+            : []
+        return makePreview(
+            auth: .init(
+                latency: .zero,
+                simulatesPersistedSession: false,
+                startsAuthenticated: true
+            ),
+            ai: .init(chunkDelay: .zero),
+            sdkConfiguration: .init(
+                mode: mode,
+                repositoryURL: repositoryURL,
+                repositoryError: repositoryError
+            ),
+            projects: projects,
+            conversations: conversations
         )
     }
 }

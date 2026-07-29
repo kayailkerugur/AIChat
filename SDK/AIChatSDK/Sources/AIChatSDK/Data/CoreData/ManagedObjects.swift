@@ -1,12 +1,25 @@
 import CoreData
 import Foundation
 
+@objc(CDProject)
+final class CDProject: NSManagedObject {
+    @NSManaged var createdAt: Date?
+    @NSManaged var id: UUID?
+    @NSManaged var name: String?
+    @NSManaged var updatedAt: Date?
+
+    @nonobjc class func fetchRequest() -> NSFetchRequest<CDProject> {
+        NSFetchRequest<CDProject>(entityName: "CDProject")
+    }
+}
+
 @objc(CDConversation)
 final class CDConversation: NSManagedObject {
     @NSManaged var createdAt: Date?
     @NSManaged var id: UUID?
     @NSManaged var modelID: String?
     @NSManaged var providerID: String?
+    @NSManaged var projectID: UUID?
     @NSManaged var title: String?
     @NSManaged var updatedAt: Date?
     @NSManaged var messages: NSSet?

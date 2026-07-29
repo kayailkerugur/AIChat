@@ -23,12 +23,25 @@ public final class InMemoryChatRepository: ConversationRepository, MessageReposi
     private var conversationsByID: [UUID: Conversation] = [:]
     private var messagesByConversation: [UUID: [ChatMessage]] = [:]
 
-    public init() {}
+    public init(conversations: [Conversation] = []) {
+        conversationsByID = Dictionary(
+            uniqueKeysWithValues: conversations.map { ($0.id, $0) }
+        )
+        messagesByConversation = Dictionary(
+            uniqueKeysWithValues: conversations.map { ($0.id, []) }
+        )
+    }
 
     // MARK: - ConversationRepository
 
     public func conversations() async throws -> [Conversation] {
         conversationsByID.values.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    public func conversations(
+        inProject projectID: UUID?
+    ) async throws -> [Conversation] {
+        try await conversations().filter { $0.projectID == projectID }
     }
 
     public func searchConversations(matching query: String) async throws -> [Conversation] {
@@ -57,6 +70,13 @@ public final class InMemoryChatRepository: ConversationRepository, MessageReposi
 
     public func touch(conversationID: UUID, at date: Date) async throws {
         conversationsByID[conversationID]?.updatedAt = date
+    }
+
+    public func move(
+        conversationID: UUID,
+        toProject projectID: UUID?
+    ) async throws {
+        conversationsByID[conversationID]?.projectID = projectID
     }
 
     public func delete(conversationID: UUID) async throws {

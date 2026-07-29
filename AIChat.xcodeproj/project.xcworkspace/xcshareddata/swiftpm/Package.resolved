@@ -1,0 +1,15 @@
+{
+  "originHash" : "ae7e856a914c5780aa2b2c6c9541f5422394d4d9a9fb271252d2d7c462c9c71f",
+  "pins" : [
+    {
+      "identity" : "swift-cgit2",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sharplet/swift-cgit2",
+      "state" : {
+        "revision" : "f1c5e899dd8cbd3199ceffc4cae22447890ca284",
+        "version" : "1.1.1"
+      }
+    }
+  ],
+  "version" : 3
+}

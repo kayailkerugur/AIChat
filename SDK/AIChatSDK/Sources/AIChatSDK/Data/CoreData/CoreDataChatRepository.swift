@@ -43,6 +43,27 @@ public final class CoreDataChatRepository: ConversationRepository, MessageReposi
         }
     }
 
+    public func conversations(
+        inProject projectID: UUID?
+    ) async throws -> [Conversation] {
+        let context = persistence.newBackgroundContext()
+        return try await context.perform {
+            let request = CDConversation.fetchRequest()
+            if let projectID {
+                request.predicate = NSPredicate(
+                    format: "projectID == %@",
+                    projectID as CVarArg
+                )
+            } else {
+                request.predicate = NSPredicate(format: "projectID == nil")
+            }
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "updatedAt", ascending: false)
+            ]
+            return try context.fetch(request).map { $0.toDomain() }
+        }
+    }
+
     public func searchConversations(matching query: String) async throws -> [Conversation] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return try await conversations() }
@@ -87,6 +108,21 @@ public final class CoreDataChatRepository: ConversationRepository, MessageReposi
             else { return }
             entity.updatedAt = date
             try self.save(context, action: "touch conversation")
+        }
+    }
+
+    public func move(
+        conversationID: UUID,
+        toProject projectID: UUID?
+    ) async throws {
+        let context = persistence.newBackgroundContext()
+        try await context.perform {
+            guard let entity = try self.fetchConversation(
+                conversationID,
+                in: context
+            ) else { return }
+            entity.projectID = projectID
+            try self.save(context, action: "move conversation")
         }
     }
 

@@ -2,10 +2,12 @@ import Foundation
 
 public protocol ConversationRepository: AnyObject, Sendable {
     func conversations() async throws -> [Conversation]
+    func conversations(inProject projectID: UUID?) async throws -> [Conversation]
     func searchConversations(matching query: String) async throws -> [Conversation]
     func create(_ conversation: Conversation) async throws
     func rename(conversationID: UUID, to title: String) async throws
     func touch(conversationID: UUID, at date: Date) async throws
+    func move(conversationID: UUID, toProject projectID: UUID?) async throws
     func delete(conversationID: UUID) async throws
 }
 

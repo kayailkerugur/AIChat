@@ -23,6 +23,9 @@ final class MockAuthService: AuthService {
 
         /// Simulates "remember me across launches" using a harmless flag.
         var simulatesPersistedSession: Bool = true
+
+        /// Starts with a fake authenticated session for previews and UI tests.
+        var startsAuthenticated: Bool = false
     }
 
     var behavior: Behavior
@@ -43,6 +46,9 @@ final class MockAuthService: AuthService {
 
     init(behavior: Behavior = Behavior()) {
         self.behavior = behavior
+        if behavior.startsAuthenticated {
+            currentSession = Self.makeFakeSession()
+        }
     }
 
     @discardableResult
@@ -51,6 +57,10 @@ final class MockAuthService: AuthService {
 
         if let failure = behavior.restoreFailure {
             throw failure
+        }
+
+        if let currentSession {
+            return currentSession
         }
 
         let hasPersisted = behavior.simulatesPersistedSession

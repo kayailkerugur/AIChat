@@ -106,6 +106,35 @@ final class InMemoryChatRepositoryTests: XCTestCase {
         XCTAssertTrue(messages.isEmpty)
     }
 
+    func testConversationsCanBeFilteredAndMovedBetweenProjects() async throws {
+        let repository = InMemoryChatRepository()
+        let firstProjectID = UUID()
+        let secondProjectID = UUID()
+        var assigned = conversation(title: "Assigned")
+        assigned.projectID = firstProjectID
+        let unassigned = conversation(title: "Unassigned")
+        try await repository.create(assigned)
+        try await repository.create(unassigned)
+
+        let firstProject = try await repository.conversations(
+            inProject: firstProjectID
+        )
+        let withoutProject = try await repository.conversations(
+            inProject: nil
+        )
+        XCTAssertEqual(firstProject.map(\.id), [assigned.id])
+        XCTAssertEqual(withoutProject.map(\.id), [unassigned.id])
+
+        try await repository.move(
+            conversationID: assigned.id,
+            toProject: secondProjectID
+        )
+        let moved = try await repository.conversations(
+            inProject: secondProjectID
+        )
+        XCTAssertEqual(moved.first?.projectID, secondProjectID)
+    }
+
     private func conversation(
         title: String = "Conversation",
         updatedAt: Date = Date(timeIntervalSince1970: 1)

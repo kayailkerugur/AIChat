@@ -90,6 +90,39 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(assistant?.content, viewModel.messages.last?.content)
     }
 
+    func test_ephemeralContextIsSentButNotPersistedOrDisplayed() async throws {
+        let provider = RecordingAIProvider()
+        let contextMessage = ChatMessage(
+            role: .system,
+            content: "Repository context"
+        )
+        let viewModel = ChatViewModel(
+            conversation: conversation,
+            aiProvider: provider,
+            messageRepository: store,
+            conversationRepository: store,
+            contextProvider: FixedChatContextProvider(
+                messages: [contextMessage]
+            )
+        )
+        viewModel.draft = "Değişikliği açıkla"
+
+        viewModel.sendDraft()
+        try await waitUntil("stream to finish") { !viewModel.isStreaming }
+
+        XCTAssertEqual(provider.lastRequest?.messages.first, contextMessage)
+        XCTAssertEqual(
+            provider.lastRequest?.messages[1].content,
+            "Değişikliği açıkla"
+        )
+        XCTAssertFalse(viewModel.messages.contains { $0.role == .system })
+
+        let persisted = try await store.messages(
+            inConversation: conversation.id
+        )
+        XCTAssertFalse(persisted.contains { $0.role == .system })
+    }
+
     // MARK: - Cancellation
 
     func test_stopStreaming_marksCancelledAndKeepsPartialContent() async throws {
@@ -191,4 +224,40 @@ final class ChatViewModelTests: XCTestCase {
         }
         XCTFail("conversation title was not auto-set from the first message")
     }
+}
+
+@MainActor
+private struct FixedChatContextProvider: ChatContextProvider {
+    let messages: [ChatMessage]
+
+    func contextMessages() -> [ChatMessage] {
+        messages
+    }
+}
+
+@MainActor
+private final class RecordingAIProvider: AIProvider {
+    let id = "mock"
+    let supportedModels = [
+        AIModel(id: "mock-fast", displayName: "Mock", providerID: "mock")
+    ]
+    let supportsImages = true
+    private(set) var lastRequest: ChatRequest?
+
+    func refreshModels() async throws -> [AIModel] {
+        supportedModels
+    }
+
+    func stream(
+        request: ChatRequest
+    ) -> AsyncThrowingStream<AIStreamEvent, Error> {
+        lastRequest = request
+        return AsyncThrowingStream { continuation in
+            continuation.yield(.textDelta("Yanıt"))
+            continuation.yield(.completed)
+            continuation.finish()
+        }
+    }
+
+    func cancelCurrentRequest() {}
 }

@@ -3,6 +3,34 @@ import AIChatSDK
 import SwiftUI
 
 final class PublicAPITests: XCTestCase {
+    func test_aiChatConfigurationDefaultsToStandardMode() {
+        let configuration = AIChatConfiguration()
+
+        XCTAssertEqual(configuration.mode, .standard)
+        XCTAssertEqual(configuration.defaultConversationTitle, "Yeni Sohbet")
+    }
+
+    func test_developerCanConfigureCodeMode() {
+        let configuration = AIChatConfiguration(
+            defaultConversationTitle: "Code Session",
+            mode: .code,
+            codeContextCharacterLimit: 12_000,
+            codeFileByteLimit: 80_000
+        )
+
+        XCTAssertEqual(configuration.mode, .code)
+        XCTAssertEqual(configuration.defaultConversationTitle, "Code Session")
+        XCTAssertEqual(configuration.codeContextCharacterLimit, 12_000)
+        XCTAssertEqual(configuration.codeFileByteLimit, 80_000)
+    }
+
+    func test_aiChatModeSupportsCodableRoundTrip() throws {
+        let data = try JSONEncoder().encode(AIChatMode.code)
+        let decoded = try JSONDecoder().decode(AIChatMode.self, from: data)
+
+        XCTAssertEqual(decoded, .code)
+    }
+
     func test_providerConfigurationUsesExistingCodableModel() throws {
         let configuration = ProviderConfiguration(
             name: "Public API Provider",
