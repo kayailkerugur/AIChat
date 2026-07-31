@@ -235,6 +235,61 @@ final class LocalGitRepositoryClientTests: XCTestCase {
             XCTAssertEqual(error, .symbolicLinkUnsupported)
         }
     }
+
+    func test_contextFileEditReadsRawContentAndWritesAtomically() async throws {
+        let fixture = try GitRepositoryFixture()
+        defer { fixture.remove() }
+        let source = """
+        # Context
+        api_key = "keep-this-value"
+        """
+        try fixture.write(source, to: "AGENTS.md")
+        let client = LocalGitRepositoryClient(rootURL: fixture.url)
+
+        let preview = try await client.readFile(
+            at: "AGENTS.md",
+            maximumByteCount: 10_000
+        )
+        let editable = try await client.readContextFile(
+            at: "AGENTS.md",
+            maximumByteCount: 10_000
+        )
+
+        XCTAssertTrue(preview.containsRedactions)
+        XCTAssertEqual(editable.content, source)
+
+        let updated = source + "\nUse Swift 6.\n"
+        try await client.writeContextFile(
+            at: "AGENTS.md",
+            content: updated,
+            maximumByteCount: 10_000
+        )
+
+        XCTAssertEqual(
+            try String(
+                contentsOf: fixture.url.appendingPathComponent("AGENTS.md"),
+                encoding: .utf8
+            ),
+            updated
+        )
+    }
+
+    func test_contextFileEditRejectsPathOutsideRepository() async throws {
+        let fixture = try GitRepositoryFixture()
+        defer { fixture.remove() }
+        let client = LocalGitRepositoryClient(rootURL: fixture.url)
+
+        do {
+            try await client.writeContextFile(
+                at: "../AGENTS.md",
+                content: "invalid",
+                maximumByteCount: 10_000
+            )
+            XCTFail("Expected invalidPath")
+        } catch let error as RepositoryError {
+            XCTAssertEqual(error, .invalidPath)
+        }
+    }
 }
 
 private final class GitRepositoryFixture {

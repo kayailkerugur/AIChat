@@ -44,6 +44,32 @@ public protocol RepositoryClient: Sendable {
     ) async throws -> RepositoryFileContent
 }
 
+/// Opt-in write access used only for explicit, user-initiated edits to an
+/// existing project context file. General repository browsing remains
+/// read-only.
+public protocol RepositoryContextFileWriting: RepositoryClient {
+    func readContextFile(
+        at path: String,
+        maximumByteCount: Int
+    ) async throws -> RepositoryFileContent
+
+    func writeContextFile(
+        at path: String,
+        content: String,
+        maximumByteCount: Int
+    ) async throws
+}
+
+/// Opt-in write capability for applying an explicitly approved edit to an
+/// existing repository file.
+public protocol RepositoryFileWriting: RepositoryClient {
+    func writeFile(
+        at path: String,
+        content: String,
+        maximumByteCount: Int
+    ) async throws
+}
+
 public extension RepositoryClient {
     func files() async throws -> [RepositoryFile] {
         throw RepositoryError.fileAccessUnsupported

@@ -14,7 +14,10 @@ struct SettingsView: View {
     @State private var isConfirmingProviderDelete = false
     let session: AuthSession
 
-    init(viewModel: SettingsViewModel, session: AuthSession) {
+    init(
+        viewModel: SettingsViewModel,
+        session: AuthSession
+    ) {
         _viewModel = State(initialValue: viewModel)
         self.session = session
     }
@@ -73,19 +76,15 @@ struct SettingsView: View {
         Form {
             Section("Varsayılan Model") {
                 Picker("Yeni sohbet modeli", selection: Bindable(viewModel).selectedModelTag) {
-                    ForEach(viewModel.providerSections) { section in
-                        Section(section.name) {
-                            ForEach(section.models) { model in
-                                Text(model.displayName)
-                                    .tag(SettingsViewModel.tag(
-                                        providerID: model.providerID,
-                                        modelID: model.id
-                                    ))
-                            }
-                        }
+                    ForEach(viewModel.selectedProviderModels) { model in
+                        Text(model.displayName)
+                            .tag(SettingsViewModel.tag(
+                                providerID: model.providerID,
+                                modelID: model.id
+                            ))
                     }
                 }
-                .disabled(viewModel.providerSections.allSatisfy { $0.models.isEmpty })
+                .disabled(viewModel.selectedProviderModels.isEmpty)
             }
 
             Section("Sağlayıcı") {

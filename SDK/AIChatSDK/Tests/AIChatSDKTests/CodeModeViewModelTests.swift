@@ -279,6 +279,49 @@ final class CodeModeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedChange, change)
         XCTAssertEqual(viewModel.selectedDiff, "+change")
     }
+
+    func test_editProposalRequiresApprovalAndWritesSelectedFile() async {
+        let file = RepositoryFile(path: "Sources/App.swift")
+        let client = RepositoryClientStub(
+            repositoryFiles: [file],
+            fileContents: [
+                file.path: RepositoryFileContent(
+                    file: file,
+                    content: "let value = 1",
+                    wasTruncated: false,
+                    containsRedactions: false
+                )
+            ]
+        )
+        let viewModel = CodeModeViewModel(
+            repositoryProvider: RepositoryProviderStub(client: client)
+        )
+
+        await viewModel.load()
+        await viewModel.select(file)
+        viewModel.prepareEditProposal(
+            from: "Öneri:\n```swift\nlet value = 2\n```"
+        )
+
+        XCTAssertEqual(
+            viewModel.editProposal?.proposedContent,
+            "let value = 2"
+        )
+        XCTAssertTrue(
+            viewModel.editProposal?.preview.contains("+let value = 2")
+                == true
+        )
+        let contentBeforeApproval = await client.writtenContent()
+        XCTAssertNil(contentBeforeApproval)
+
+        await viewModel.applyEditProposal()
+
+        let writtenPath = await client.writtenPath()
+        let writtenContent = await client.writtenContent()
+        XCTAssertEqual(writtenPath, file.path)
+        XCTAssertEqual(writtenContent, "let value = 2")
+        XCTAssertNil(viewModel.editProposal)
+    }
 }
 
 private actor RepositoryProviderStub: RepositoryProvider {
@@ -325,7 +368,7 @@ private actor FailingRepositoryProvider: RepositoryProvider {
     }
 }
 
-private actor RepositoryClientStub: RepositoryClient {
+private actor RepositoryClientStub: RepositoryClient, RepositoryFileWriting {
     nonisolated let repository = RepositoryDescriptor(
         displayName: "AIChat",
         rootURL: URL(fileURLWithPath: "/tmp/AIChat")
@@ -335,6 +378,8 @@ private actor RepositoryClientStub: RepositoryClient {
     private let diffs: [String: String]
     private let repositoryFiles: [RepositoryFile]
     private let fileContents: [String: RepositoryFileContent]
+    private var capturedWrittenPath: String?
+    private var capturedWrittenContent: String?
 
     init(
         changes: [RepositoryChange] = [],
@@ -384,6 +429,23 @@ private actor RepositoryClientStub: RepositoryClient {
             throw RepositoryError.fileNotFound
         }
         return content
+    }
+
+    func writeFile(
+        at path: String,
+        content: String,
+        maximumByteCount: Int
+    ) async throws {
+        capturedWrittenPath = path
+        capturedWrittenContent = content
+    }
+
+    func writtenPath() -> String? {
+        capturedWrittenPath
+    }
+
+    func writtenContent() -> String? {
+        capturedWrittenContent
     }
 }
 

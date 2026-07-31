@@ -35,12 +35,10 @@ struct MainWindowView: View {
     init(session: AuthSession, dependencies: AppDependencies) {
         self.session = session
         self.dependencies = dependencies
-        let isCodeMode =
-            dependencies.aiChatClient.configuration.mode == .code
         _sidebarViewModel = State(initialValue: SidebarViewModel(
             conversationRepository: dependencies.conversationRepository,
             usesProjects: true,
-            requiresProjectForNewConversation: isCodeMode,
+            requiresProjectForNewConversation: false,
             defaultModel: { [registry = dependencies.aiProviders] in
                 SettingsViewModel.preferredModel(in: registry)
             }
@@ -93,6 +91,8 @@ struct MainWindowView: View {
                     repositoryViewModel: repositoryViewModel,
                     conversationRepository:
                         dependencies.conversationRepository,
+                    contextFilesViewModel:
+                        makeProjectContextFilesViewModel(for: project),
                     onSelectRepository: {
                         selectRepository(for: project)
                     },
@@ -141,6 +141,7 @@ struct MainWindowView: View {
                 }
                 .keyboardShortcut(",", modifiers: .command) // macOS convention
                 .accessibilityLabel(isShowingSettings ? "Ayarlardan çık" : "Ayarları aç")
+                .accessibilityIdentifier("settings-button")
             }
             ToolbarItem(placement: .automatic) {
                 Menu {
@@ -202,6 +203,19 @@ struct MainWindowView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private func makeProjectContextFilesViewModel(
+        for project: AIChatProject
+    ) -> ProjectContextFilesViewModel? {
+        guard dependencies.aiChatClient.configuration.mode == .code,
+              let repositoryProvider = dependencies.repositoryProvider else {
+            return nil
+        }
+        return ProjectContextFilesViewModel(
+            repositoryProvider: repositoryProvider,
+            projectID: project.id
+        )
+    }
+
     @ViewBuilder
     private func conversationView(
         conversation: Conversation,
@@ -212,8 +226,17 @@ struct MainWindowView: View {
             ChatView(viewModel: viewModel)
                 .id(conversation.id)
         case .code:
-            if let codeModeViewModel = codeModeViewModel(for: conversation) {
+            if conversation.projectID == nil {
                 ChatView(viewModel: viewModel)
+                    .id(conversation.id)
+            } else if let codeModeViewModel = codeModeViewModel(
+                for: conversation
+            ) {
+                ChatView(
+                    viewModel: viewModel,
+                    codeModeViewModel: codeModeViewModel,
+                    projectName: projectName(for: conversation)
+                )
                 .id(conversation.id)
                 .task {
                     await codeModeViewModel.load()
@@ -222,6 +245,13 @@ struct MainWindowView: View {
                 codeModeConfigurationErrorView
             }
         }
+    }
+
+    private func projectName(for conversation: Conversation) -> String? {
+        guard let projectID = conversation.projectID else { return nil }
+        return projectListViewModel.projects.first {
+            $0.id == projectID
+        }?.name
     }
 
     private var codeModeConfigurationErrorView: some View {
@@ -385,7 +415,8 @@ struct MainWindowView: View {
     private func codeModeViewModel(
         for conversation: Conversation
     ) -> CodeModeViewModel? {
-        guard dependencies.aiChatClient.configuration.mode == .code else {
+        guard dependencies.aiChatClient.configuration.mode == .code,
+              conversation.projectID != nil else {
             return nil
         }
         if let cached = codeModeViewModels.store[conversation.id] {

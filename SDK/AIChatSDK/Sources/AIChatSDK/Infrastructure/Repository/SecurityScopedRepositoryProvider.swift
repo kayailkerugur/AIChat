@@ -78,7 +78,12 @@ private final class SecurityScopedAccess: @unchecked Sendable {
     }
 }
 
-private final class SecurityScopedRepositoryClient: RepositoryClient, Sendable {
+private final class SecurityScopedRepositoryClient:
+    RepositoryClient,
+    RepositoryContextFileWriting,
+    RepositoryFileWriting,
+    Sendable
+{
     let repository: RepositoryDescriptor
 
     private let client: LocalGitRepositoryClient
@@ -114,6 +119,43 @@ private final class SecurityScopedRepositoryClient: RepositoryClient, Sendable {
     ) async throws -> RepositoryFileContent {
         _ = access
         return try await client.readFile(
+            at: path,
+            maximumByteCount: maximumByteCount
+        )
+    }
+
+    func writeContextFile(
+        at path: String,
+        content: String,
+        maximumByteCount: Int
+    ) async throws {
+        _ = access
+        try await client.writeContextFile(
+            at: path,
+            content: content,
+            maximumByteCount: maximumByteCount
+        )
+    }
+
+    func writeFile(
+        at path: String,
+        content: String,
+        maximumByteCount: Int
+    ) async throws {
+        _ = access
+        try await client.writeFile(
+            at: path,
+            content: content,
+            maximumByteCount: maximumByteCount
+        )
+    }
+
+    func readContextFile(
+        at path: String,
+        maximumByteCount: Int
+    ) async throws -> RepositoryFileContent {
+        _ = access
+        return try await client.readContextFile(
             at: path,
             maximumByteCount: maximumByteCount
         )

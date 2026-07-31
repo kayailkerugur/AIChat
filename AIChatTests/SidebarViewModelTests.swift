@@ -97,6 +97,33 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.conversations.first?.projectID)
     }
 
+    func test_codeModeAllowsProjectlessConversationWhenProjectIsOptional()
+        async {
+        let repository = InMemoryChatRepository()
+        let viewModel = SidebarViewModel(
+            conversationRepository: repository,
+            usesProjects: true,
+            requiresProjectForNewConversation: false,
+            defaultModel: {
+                AIModel(
+                    id: "mock-model",
+                    displayName: "Mock",
+                    providerID: "mock"
+                )
+            }
+        )
+
+        await viewModel.createConversation()
+
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.conversations.count, 1)
+        XCTAssertNil(viewModel.conversations.first?.projectID)
+        XCTAssertEqual(
+            viewModel.selectedConversationID,
+            viewModel.conversations.first?.id
+        )
+    }
+
     private func makeViewModel(
         repository: InMemoryChatRepository,
         projectID: UUID?

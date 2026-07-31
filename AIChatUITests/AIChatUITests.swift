@@ -218,6 +218,71 @@ final class AIChatUITests: XCTestCase {
     }
 
     @MainActor
+    func testContextFileCanBeOpenedAndSavedFromProjectDetail() {
+        let app = makeApplication(
+            codeMode: true,
+            createsRepositoryFixture: true
+        )
+        app.launch()
+        ensureWindowIsOpen(in: app)
+
+        let project = element(Self.projectIdentifier, in: app)
+        XCTAssertTrue(project.waitForExistence(timeout: 5))
+        project.click()
+        XCTAssertTrue(
+            element("project-repository-branch", in: app)
+                .waitForExistence(timeout: 10)
+        )
+
+        let editor = element("context-file-editor", in: app)
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        editor.click()
+        editor.typeKey(.end, modifierFlags: .command)
+        editor.typeText("\nEdited from project detail")
+
+        let saveButton = element("save-context-file", in: app)
+        XCTAssertTrue(saveButton.isEnabled)
+        saveButton.click()
+        XCTAssertTrue(
+            app.staticTexts["README.md kaydedildi."]
+                .waitForExistence(timeout: 5)
+        )
+
+        let conversation = element(
+            Self.conversationIdentifier,
+            in: app
+        ).firstMatch
+        XCTAssertTrue(conversation.waitForExistence(timeout: 5))
+        conversation.click()
+        XCTAssertTrue(
+            element("chat-repository-context", in: app)
+                .waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(
+            element("chat-repository-branch", in: app).exists
+        )
+
+        let messageField = app.textViews["Mesaj alanı"]
+        XCTAssertTrue(messageField.waitForExistence(timeout: 5))
+        messageField.click()
+        messageField.typeText("@")
+        XCTAssertTrue(
+            element("repository-file-picker", in: app)
+                .waitForExistence(timeout: 5)
+        )
+        let readmeMention = element(
+            "repository-mention-README.md",
+            in: app
+        )
+        XCTAssertTrue(readmeMention.waitForExistence(timeout: 5))
+        readmeMention.click()
+        XCTAssertTrue(
+            element("selected-repository-file", in: app)
+                .waitForExistence(timeout: 5)
+        )
+    }
+
+    @MainActor
     func testStaleBookmarkRequestsRepositoryPermissionRenewal() {
         assertRepositoryError(
             named: "staleBookmark",

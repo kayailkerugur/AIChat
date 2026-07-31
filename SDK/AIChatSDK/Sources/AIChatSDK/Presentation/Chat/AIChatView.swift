@@ -24,15 +24,24 @@ public struct AIChatView: View {
 
     private let configuredTheme: AIChatTheme?
     private let configuredBranding: AIChatBranding?
+    private let repositoryFiles: [RepositoryFile]
+    private let selectedRepositoryFile: RepositoryFile?
+    private let onSelectRepositoryFile: ((RepositoryFile) -> Void)?
 
     public init(
         viewModel: ChatViewModel,
         theme: AIChatTheme? = nil,
-        branding: AIChatBranding? = nil
+        branding: AIChatBranding? = nil,
+        repositoryFiles: [RepositoryFile] = [],
+        selectedRepositoryFile: RepositoryFile? = nil,
+        onSelectRepositoryFile: ((RepositoryFile) -> Void)? = nil
     ) {
         _viewModel = State(initialValue: viewModel)
         configuredTheme = theme
         configuredBranding = branding
+        self.repositoryFiles = repositoryFiles
+        self.selectedRepositoryFile = selectedRepositoryFile
+        self.onSelectRepositoryFile = onSelectRepositoryFile
     }
 
     private enum ScrollAnchor: Hashable { case bottom }
@@ -69,6 +78,9 @@ public struct AIChatView: View {
                 canSend: viewModel.canSend,
                 onAddAttachment: { viewModel.addAttachment(from: $0) },
                 onRemoveAttachment: { viewModel.removePendingAttachment(id: $0) },
+                repositoryFiles: repositoryFiles,
+                selectedRepositoryFile: selectedRepositoryFile,
+                onSelectRepositoryFile: onSelectRepositoryFile,
                 onSend: { viewModel.sendDraft() },
                 onStop: { viewModel.stopStreaming() }
             )

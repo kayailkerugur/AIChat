@@ -125,6 +125,8 @@ public enum RepositoryError: LocalizedError, Equatable, Sendable {
     case binaryFileUnsupported
     case symbolicLinkUnsupported
     case fileAccessUnsupported
+    case fileWriteUnsupported
+    case invalidTextEncoding
     case invalidBookmark
     case staleBookmark
     case securityScopedAccessDenied
@@ -149,6 +151,10 @@ public enum RepositoryError: LocalizedError, Equatable, Sendable {
             return "Sembolik bağlantılar üzerinden dosya erişimine izin verilmez."
         case .fileAccessUnsupported:
             return "Bu repository sağlayıcısı dosya erişimini desteklemiyor."
+        case .fileWriteUnsupported:
+            return "Bu repository sağlayıcısı bağlam dosyası düzenlemeyi desteklemiyor."
+        case .invalidTextEncoding:
+            return "Bağlam dosyası UTF-8 metin olarak kaydedilemedi."
         case .invalidBookmark:
             return "Repository erişim kaydı geçerli değil."
         case .staleBookmark:

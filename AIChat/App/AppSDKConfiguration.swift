@@ -27,8 +27,7 @@ struct AppSDKConfiguration {
 
     /// The single compile-time selection point for the running application.
     nonisolated static let current = AppSDKConfiguration(
-        mode: .code,
-        repositoryURL: nil
+        mode: .code
     )
 
     var sdkConfiguration: AIChatConfiguration {

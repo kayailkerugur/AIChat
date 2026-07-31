@@ -4,6 +4,13 @@ import Observation
 @MainActor
 @Observable
 public final class CodeModeViewModel {
+    public struct EditProposal: Equatable, Sendable {
+        public let file: RepositoryFile
+        public let originalContent: String
+        public let proposedContent: String
+        public let preview: String
+    }
+
     public private(set) var repositoryStatus: RepositoryStatus?
     public private(set) var repositoryFiles: [RepositoryFile] = []
     public private(set) var selectedChange: RepositoryChange?
@@ -14,6 +21,8 @@ public final class CodeModeViewModel {
     public private(set) var isLoadingFile = false
     public private(set) var errorMessage: String?
     public private(set) var requiresRepositorySelection = false
+    public private(set) var editProposal: EditProposal?
+    public private(set) var editInfoMessage: String?
 
     private let repositoryProvider: any RepositoryProvider
     private let projectID: UUID?
@@ -147,6 +156,90 @@ public final class CodeModeViewModel {
         }
     }
 
+    public func prepareEditProposal(from assistantResponse: String) {
+        guard let selectedFileContent,
+              !selectedFileContent.wasTruncated,
+              !selectedFileContent.containsRedactions,
+              let proposedContent = Self.firstCodeBlock(
+                in: assistantResponse
+              ),
+              proposedContent != selectedFileContent.content else {
+            editProposal = nil
+            return
+        }
+
+        editProposal = EditProposal(
+            file: selectedFileContent.file,
+            originalContent: selectedFileContent.content,
+            proposedContent: proposedContent,
+            preview: Self.replacementPreview(
+                path: selectedFileContent.file.path,
+                original: selectedFileContent.content,
+                proposed: proposedContent
+            )
+        )
+        editInfoMessage = nil
+    }
+
+    public func applyEditProposal() async {
+        guard let editProposal,
+              let writer = repositoryClient as? any RepositoryFileWriting else {
+            errorMessage = RepositoryError.fileWriteUnsupported.errorDescription
+            return
+        }
+        do {
+            try await writer.writeFile(
+                at: editProposal.file.path,
+                content: editProposal.proposedContent,
+                maximumByteCount: fileByteLimit
+            )
+            self.editProposal = nil
+            editInfoMessage = "\(editProposal.file.path) güncellendi."
+            await refresh()
+            await select(editProposal.file)
+        } catch {
+            errorMessage = Self.userFacingMessage(for: error)
+        }
+    }
+
+    public func dismissEditProposal() {
+        editProposal = nil
+    }
+
+    private static func firstCodeBlock(in response: String) -> String? {
+        guard let opening = response.range(of: "```") else { return nil }
+        let afterOpening = response[opening.upperBound...]
+        guard let firstNewline = afterOpening.firstIndex(of: "\n") else {
+            return nil
+        }
+        let contentStart = afterOpening.index(after: firstNewline)
+        guard let closing = response.range(
+            of: "```",
+            range: contentStart..<response.endIndex
+        ) else { return nil }
+        var content = String(response[contentStart..<closing.lowerBound])
+        if content.hasSuffix("\n") {
+            content.removeLast()
+        }
+        return content
+    }
+
+    private static func replacementPreview(
+        path: String,
+        original: String,
+        proposed: String
+    ) -> String {
+        """
+        --- a/\(path)
+        +++ b/\(path)
+        @@ Tam dosya değişikliği @@
+        \(original.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { "-\($0)" }.joined(separator: "\n"))
+        \(proposed.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { "+\($0)" }.joined(separator: "\n"))
+        """
+    }
+
     public func dismissError() {
         errorMessage = nil
     }
@@ -240,6 +333,11 @@ extension CodeModeViewModel: ChatContextProvider {
             <selected-file path="\(selectedFileContent.file.path)">
             \(limitedContent)\(noticeBlock)
             </selected-file>
+
+            Kullanıcı bu dosyada değişiklik isterse, önerilen TAM dosya \
+            içeriğini tek bir fenced code block içinde döndür. Dosyaya \
+            kendin yazma; uygulama kullanıcıya diff önizlemesi ve açık onay \
+            gösterecek.
             """
         }
 

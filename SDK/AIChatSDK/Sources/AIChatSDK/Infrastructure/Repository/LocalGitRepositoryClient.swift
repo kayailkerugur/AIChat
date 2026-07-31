@@ -4,7 +4,12 @@ import Foundation
 ///
 /// Git data is read in-process through libgit2 so the client works inside an
 /// App Sandbox without launching `git`, `xcrun`, or a shell.
-public final class LocalGitRepositoryClient: RepositoryClient, Sendable {
+public final class LocalGitRepositoryClient:
+    RepositoryClient,
+    RepositoryContextFileWriting,
+    RepositoryFileWriting,
+    Sendable
+{
     public let repository: RepositoryDescriptor
 
     public init(repository: RepositoryDescriptor) {
@@ -61,7 +66,11 @@ public final class LocalGitRepositoryClient: RepositoryClient, Sendable {
         let repository = repository
         return try await Task.detached(priority: .utility) {
             let handle = try GitRepositoryHandle(opening: repository.rootURL)
-            return try handle.files()
+            let trackedFiles = try handle.files()
+            let workingTreeFiles = try handle.changes()
+                .filter { $0.status != .deleted }
+                .map(\.path)
+            return Set(trackedFiles + workingTreeFiles)
                 .map(RepositoryFile.init(path:))
                 .sorted {
                     $0.path.localizedStandardCompare($1.path) == .orderedAscending
@@ -113,6 +122,83 @@ public final class LocalGitRepositoryClient: RepositoryClient, Sendable {
                 content: redacted.content,
                 wasTruncated: wasTruncated,
                 containsRedactions: redacted.changed
+            )
+        }.value
+    }
+
+    public func writeContextFile(
+        at path: String,
+        content: String,
+        maximumByteCount: Int = 200_000
+    ) async throws {
+        let repository = repository
+        try await Task.detached(priority: .utility) {
+            guard let data = content.data(using: .utf8) else {
+                throw RepositoryError.invalidTextEncoding
+            }
+            guard data.count <= max(0, maximumByteCount) else {
+                throw RepositoryError.fileTooLarge
+            }
+
+            let rootURL = try GitRepositoryHandle(
+                opening: repository.rootURL
+            ).rootURL
+            let fileURL = try Self.validatedFileURL(
+                path: path,
+                within: rootURL
+            )
+            try data.write(to: fileURL, options: .atomic)
+        }.value
+    }
+
+    public func writeFile(
+        at path: String,
+        content: String,
+        maximumByteCount: Int = 200_000
+    ) async throws {
+        try await writeContextFile(
+            at: path,
+            content: content,
+            maximumByteCount: maximumByteCount
+        )
+    }
+
+    public func readContextFile(
+        at path: String,
+        maximumByteCount: Int = 200_000
+    ) async throws -> RepositoryFileContent {
+        let repository = repository
+        return try await Task.detached(priority: .utility) {
+            let rootURL = try GitRepositoryHandle(
+                opening: repository.rootURL
+            ).rootURL
+            let fileURL = try Self.validatedFileURL(
+                path: path,
+                within: rootURL
+            )
+            let limit = max(0, maximumByteCount)
+            guard limit > 0 else {
+                throw RepositoryError.fileTooLarge
+            }
+            let values = try fileURL.resourceValues(
+                forKeys: [.fileSizeKey, .isRegularFileKey]
+            )
+            guard values.isRegularFile == true else {
+                throw RepositoryError.fileNotFound
+            }
+            let data = try Data(contentsOf: fileURL)
+            guard data.count <= limit else {
+                throw RepositoryError.fileTooLarge
+            }
+            guard !data.contains(0),
+                  let content = String(data: data, encoding: .utf8) else {
+                throw RepositoryError.binaryFileUnsupported
+            }
+            return RepositoryFileContent(
+                file: RepositoryFile(path: path),
+                content: content,
+                wasTruncated: false,
+                containsRedactions: false
             )
         }.value
     }

@@ -16,13 +16,19 @@ public struct ComposerView: View {
     let canSend: Bool
     let onAddAttachment: (URL) -> Void
     let onRemoveAttachment: (UUID) -> Void
+    let repositoryFiles: [RepositoryFile]
+    let selectedRepositoryFile: RepositoryFile?
+    let onSelectRepositoryFile: ((RepositoryFile) -> Void)?
     let onSend: () -> Void
     let onStop: () -> Void
 
     @FocusState private var isFocused: Bool
+    @FocusState private var isRepositorySearchFocused: Bool
     @Environment(\.aiChatTheme) private var theme
     @State private var editorHeight: CGFloat = 34
     @State private var isShowingFileImporter = false
+    @State private var isShowingRepositoryFiles = false
+    @State private var repositoryFileQuery = ""
 
     private let minEditorHeight: CGFloat = 34
     private let maxEditorHeight: CGFloat = 180
@@ -34,6 +40,9 @@ public struct ComposerView: View {
         canSend: Bool,
         onAddAttachment: @escaping (URL) -> Void,
         onRemoveAttachment: @escaping (UUID) -> Void,
+        repositoryFiles: [RepositoryFile] = [],
+        selectedRepositoryFile: RepositoryFile? = nil,
+        onSelectRepositoryFile: ((RepositoryFile) -> Void)? = nil,
         onSend: @escaping () -> Void,
         onStop: @escaping () -> Void
     ) {
@@ -43,6 +52,9 @@ public struct ComposerView: View {
         self.canSend = canSend
         self.onAddAttachment = onAddAttachment
         self.onRemoveAttachment = onRemoveAttachment
+        self.repositoryFiles = repositoryFiles
+        self.selectedRepositoryFile = selectedRepositoryFile
+        self.onSelectRepositoryFile = onSelectRepositoryFile
         self.onSend = onSend
         self.onStop = onStop
     }
@@ -51,6 +63,15 @@ public struct ComposerView: View {
         VStack(alignment: .leading, spacing: 8) {
             if !attachments.isEmpty {
                 attachmentChips
+            }
+            if let selectedRepositoryFile {
+                Label(selectedRepositoryFile.path, systemImage: "doc.text")
+                    .font(theme.captionFont)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.quaternary.opacity(0.6), in: Capsule())
+                    .accessibilityIdentifier("selected-repository-file")
             }
 
             HStack(alignment: .bottom, spacing: 8) {
@@ -99,6 +120,12 @@ public struct ComposerView: View {
                 break
             }
         }
+        .onChange(of: draft) {
+            updateRepositoryFilePicker()
+        }
+        .sheet(isPresented: $isShowingRepositoryFiles) {
+            repositoryFilePicker
+        }
     }
 
     // MARK: - Growing editor
@@ -140,6 +167,139 @@ public struct ComposerView: View {
         }
         .animation(.easeOut(duration: 0.1), value: editorHeight)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var matchingRepositoryFiles: [RepositoryFile] {
+        guard !repositoryFileQuery.isEmpty else {
+            return repositoryFiles
+        }
+        return repositoryFiles
+            .filter {
+                $0.path.localizedCaseInsensitiveContains(
+                    repositoryFileQuery
+                )
+            }
+            .sorted { lhs, rhs in
+                let lhsName = URL(fileURLWithPath: lhs.path)
+                    .lastPathComponent
+                let rhsName = URL(fileURLWithPath: rhs.path)
+                    .lastPathComponent
+                let lhsStarts = lhsName.localizedCaseInsensitiveContains(
+                    repositoryFileQuery
+                )
+                let rhsStarts = rhsName.localizedCaseInsensitiveContains(
+                    repositoryFileQuery
+                )
+                if lhsStarts != rhsStarts {
+                    return lhsStarts
+                }
+                return lhs.path.localizedStandardCompare(rhs.path)
+                    == .orderedAscending
+            }
+    }
+
+    private var repositoryFilePicker: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Repository Dosyası Seç")
+                        .font(.title2.bold())
+                    Text("\(matchingRepositoryFiles.count) dosya")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Vazgeç") {
+                    isShowingRepositoryFiles = false
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+
+            TextField(
+                "Dosya adı veya klasör yolu ara",
+                text: $repositoryFileQuery
+            )
+            .textFieldStyle(.roundedBorder)
+            .focused($isRepositorySearchFocused)
+            .accessibilityIdentifier("repository-file-search")
+
+            if matchingRepositoryFiles.isEmpty {
+                ContentUnavailableView(
+                    "Dosya bulunamadı",
+                    systemImage: "doc.text.magnifyingglass"
+                )
+            } else {
+                List(matchingRepositoryFiles) { file in
+                    Button {
+                        selectRepositoryFile(file)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "doc.text")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(
+                                    URL(fileURLWithPath: file.path)
+                                        .lastPathComponent
+                                )
+                                .font(.body)
+                                Text(file.path)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(
+                        "repository-mention-\(file.path)"
+                    )
+                }
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 620, idealWidth: 720, minHeight: 460)
+        .onAppear {
+            isRepositorySearchFocused = true
+        }
+        .accessibilityIdentifier("repository-file-picker")
+    }
+
+    private func updateRepositoryFilePicker() {
+        guard onSelectRepositoryFile != nil,
+              !repositoryFiles.isEmpty,
+              let token = repositoryMentionToken else {
+            isShowingRepositoryFiles = false
+            repositoryFileQuery = ""
+            return
+        }
+        repositoryFileQuery = String(token.dropFirst())
+        isShowingRepositoryFiles = true
+    }
+
+    private var repositoryMentionToken: Substring? {
+        guard let atIndex = draft.lastIndex(of: "@") else { return nil }
+        if atIndex > draft.startIndex {
+            let previous = draft.index(before: atIndex)
+            guard draft[previous].isWhitespace else { return nil }
+        }
+        let token = draft[atIndex...]
+        guard !token.dropFirst().contains(where: \.isWhitespace) else {
+            return nil
+        }
+        return token
+    }
+
+    private func selectRepositoryFile(_ file: RepositoryFile) {
+        if let token = repositoryMentionToken,
+           let range = draft.range(of: token, options: .backwards) {
+            draft.replaceSubrange(range, with: "@\(file.path) ")
+        }
+        isShowingRepositoryFiles = false
+        repositoryFileQuery = ""
+        onSelectRepositoryFile?(file)
+        isFocused = true
     }
 
     private var attachmentChips: some View {

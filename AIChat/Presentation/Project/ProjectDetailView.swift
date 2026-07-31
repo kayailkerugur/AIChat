@@ -5,6 +5,7 @@ struct ProjectDetailView: View {
     let project: AIChatProject
     @State private var repositoryViewModel: CodeModeViewModel
     @State private var workspaceViewModel: ProjectWorkspaceViewModel
+    @State private var contextFilesViewModel: ProjectContextFilesViewModel?
     let onSelectRepository: () -> Void
     let onCreateConversation: () -> Void
     let onOpenConversation: (UUID) -> Void
@@ -13,6 +14,7 @@ struct ProjectDetailView: View {
         project: AIChatProject,
         repositoryViewModel: CodeModeViewModel,
         conversationRepository: any ConversationRepository,
+        contextFilesViewModel: ProjectContextFilesViewModel?,
         onSelectRepository: @escaping () -> Void,
         onCreateConversation: @escaping () -> Void,
         onOpenConversation: @escaping (UUID) -> Void
@@ -23,6 +25,7 @@ struct ProjectDetailView: View {
             projectID: project.id,
             conversationRepository: conversationRepository
         ))
+        _contextFilesViewModel = State(initialValue: contextFilesViewModel)
         self.onSelectRepository = onSelectRepository
         self.onCreateConversation = onCreateConversation
         self.onOpenConversation = onOpenConversation
@@ -47,6 +50,12 @@ struct ProjectDetailView: View {
             async let repositoryLoad: Void = repositoryViewModel.load()
             async let activityLoad: Void = workspaceViewModel.load()
             _ = await (repositoryLoad, activityLoad)
+            await contextFilesViewModel?.load()
+        }
+        .onChange(of: repositoryViewModel.repositoryFiles.map(\.path)) {
+            Task {
+                await contextFilesViewModel?.load()
+            }
         }
     }
 
@@ -193,37 +202,119 @@ struct ProjectDetailView: View {
                     .textFieldStyle(.roundedBorder)
                 }
 
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text("Algılanan bağlam dosyaları")
-                            .font(.headline)
-                        let files = workspaceViewModel.contextFiles(
-                            from: repositoryViewModel.repositoryFiles
-                        )
-                        if files.isEmpty {
-                            Text("README.md, AGENTS.md veya Package.swift bulunamadı.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(files.prefix(6)) { file in
-                                Button {
-                                    Task {
-                                        await repositoryViewModel.select(file)
-                                    }
-                                } label: {
-                                    Label(file.path, systemImage: "doc.text")
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
+                HStack {
                     Spacer()
                     Button("Açıklamayı Kaydet") {
                         workspaceViewModel.saveContext()
                     }
                     .accessibilityIdentifier("save-project-summary")
                 }
+
+                Divider()
+
+                contextFilesEditor
             }
             .padding(8)
+        }
+    }
+
+    @ViewBuilder
+    private var contextFilesEditor: some View {
+        if let editor = contextFilesViewModel {
+            @Bindable var editor = editor
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Bağlam Dosyaları")
+                    .font(.headline)
+
+                if editor.isLoading && editor.files.isEmpty {
+                    ProgressView("Bağlam dosyaları yükleniyor…")
+                        .frame(maxWidth: .infinity, minHeight: 120)
+                } else if editor.files.isEmpty {
+                    ContentUnavailableView(
+                        "Bağlam dosyası bulunamadı",
+                        systemImage: "doc.text.magnifyingglass",
+                        description: Text(
+                            editor.errorMessage
+                                ?? "README.md, AGENTS.md veya desteklenen başka bir bağlam dosyası bulunamadı."
+                        )
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 150)
+                } else {
+                    HSplitView {
+                        List(editor.files, selection: Binding(
+                            get: { editor.selectedFile?.id },
+                            set: { selectedID in
+                                guard let file = editor.files.first(
+                                    where: { $0.id == selectedID }
+                                ) else { return }
+                                Task { await editor.select(file) }
+                            }
+                        )) { file in
+                            Label(file.path, systemImage: "doc.text")
+                                .lineLimit(1)
+                                .tag(file.id)
+                        }
+                        .frame(minWidth: 190, idealWidth: 230)
+                        .accessibilityIdentifier("context-files-list")
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(editor.selectedFile?.path ?? "Dosya seçin")
+                                .font(.headline)
+                                .lineLimit(1)
+
+                            TextEditor(text: $editor.content)
+                                .font(.system(.body, design: .monospaced))
+                                .disabled(editor.selectedFile == nil)
+                                .accessibilityIdentifier("context-file-editor")
+
+                            HStack {
+                                if editor.isSaving {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                                Button("Kaydet") {
+                                    Task { await editor.save() }
+                                }
+                                .disabled(!editor.canSave)
+                                .accessibilityIdentifier("save-context-file")
+
+                                Button("Değişiklikleri Geri Al") {
+                                    editor.revert()
+                                }
+                                .disabled(!editor.hasChanges)
+
+                                Spacer()
+                                if editor.hasChanges {
+                                    Text("Kaydedilmemiş değişiklikler")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                        .frame(minWidth: 320)
+                    }
+                    .frame(height: 300)
+                }
+
+                if let infoMessage = editor.infoMessage {
+                    Label(infoMessage, systemImage: "checkmark.circle")
+                        .foregroundStyle(.green)
+                }
+                if let errorMessage = editor.errorMessage,
+                   !editor.files.isEmpty {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                }
+            }
+        } else {
+            ContentUnavailableView(
+                "Bağlam dosyaları kullanılamıyor",
+                systemImage: "doc.text.magnifyingglass",
+                description: Text(
+                    "Repository sağlayıcısı yapılandırıldığında bağlam dosyaları burada açılabilir."
+                )
+            )
+            .frame(maxWidth: .infinity, minHeight: 150)
         }
     }
 

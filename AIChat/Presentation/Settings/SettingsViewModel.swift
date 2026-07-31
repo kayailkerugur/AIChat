@@ -16,7 +16,10 @@ final class SettingsViewModel {
     // MARK: - Observed state
 
     var selectedProviderID: UUID? {
-        didSet { loadSelectedProviderDrafts() }
+        didSet {
+            loadSelectedProviderDrafts()
+            selectModelForSelectedProviderIfNeeded()
+        }
     }
 
     var providerNameDraft = ""
@@ -64,6 +67,10 @@ final class SettingsViewModel {
         }
     }
 
+    var selectedProviderModels: [AIModel] {
+        selectedProvider?.asAIModels ?? []
+    }
+
     // MARK: - Picker content
 
     struct ProviderSection: Identifiable {
@@ -100,9 +107,12 @@ final class SettingsViewModel {
             providerID: preferred.providerID,
             modelID: preferred.id
         )
-        self.selectedProviderID = providerConfigurationService.configurations.first?.id
+        self.selectedProviderID = providerConfigurationService.configurations
+            .first { $0.providerID == preferred.providerID }?.id
+            ?? providerConfigurationService.configurations.first?.id
 
         loadSelectedProviderDrafts()
+        selectModelForSelectedProviderIfNeeded()
     }
 
     /// Reads the user's preferred default model across all providers.
@@ -334,6 +344,35 @@ final class SettingsViewModel {
             return
         }
         hasStoredAPIKey = providerConfigurationService.hasCredential(for: selectedProvider)
+    }
+
+    private func selectModelForSelectedProviderIfNeeded() {
+        guard let selectedProvider else { return }
+        let models = selectedProvider.asAIModels
+        guard !models.isEmpty else {
+            selectedModelTag = ""
+            return
+        }
+
+        let currentTagBelongsToProvider = models.contains {
+            Self.tag(providerID: $0.providerID, modelID: $0.id)
+                == selectedModelTag
+        }
+        guard !currentTagBelongsToProvider else { return }
+
+        let storedProviderID = UserDefaults.standard.string(
+            forKey: Self.providerKey
+        )
+        let storedModelID = UserDefaults.standard.string(
+            forKey: Self.modelKey
+        )
+        let model = models.first {
+            $0.providerID == storedProviderID && $0.id == storedModelID
+        } ?? models[0]
+        selectedModelTag = Self.tag(
+            providerID: model.providerID,
+            modelID: model.id
+        )
     }
 
     private func persistDefaultModelTag() {
